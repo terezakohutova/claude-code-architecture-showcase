@@ -43,12 +43,26 @@ and shows the actual allow/deny output. [`examples/sample-listing.md`](examples/
 is the unedited result of handing a fresh agent only the `product-listing`
 skill and the two inventory files, no expected output written first.
 
+## Self-extension: a skill built from watched inspiration, not a spec
+
+[`examples/skill-generation-session.md`](examples/skill-generation-session.md)
+is a case study of a different kind of session: instead of the owner
+describing an automation up front, the agent was pointed at a folder of
+saved short-form videos and asked to find what was actually worth
+building. Six candidates came out of it, two were turned down with a
+stated reason, and one (`.claude/skills/commitment-tracker/`) was built
+and proven end to end, same blind-verification standard as the rest of
+this repo, a fresh agent ran the skill for real on
+[`examples/sample-call-notes.md`](examples/sample-call-notes.md) and the
+unedited result is what's shown.
+
 ## What's in this repo
 
 - `CLAUDE.md`, `ORGANIZACE.md` - the index file and the methodology doc that explains how to build this structure on a new project (deliberately written to be copy-pasted elsewhere, it doesn't reference this specific example).
 - `Feedback/` - one real-shaped example: a style rule that started as a documented preference, kept getting violated, and was eventually backed by a hard hook. That escalation (soft rule -> repeated drift -> technical gate) is the most useful pattern in here to steal.
 - `.claude/hooks/` - the two hooks referenced above, in working form: `scope-guard.js` (a subagent or a careless edit should never be able to touch files outside the project root) and `style-guard.js` (the technical enforcement for the Feedback rule).
 - `.claude/skills/product-listing/` - one example of a recurring procedure written as a checklist skill, with a reference/status split for the data it depends on (`Inventory/`).
+- `.claude/skills/commitment-tracker/` - a second skill, this one produced by the self-extension session described above rather than written from a spec, plus `TODO.md` as the plain file it writes to.
 - `.claude/agents/` - two of the four custom agent archetypes that came out of the real workspace: a research agent (`inventory-researcher`, fans out web/data lookups with strict sourcing discipline and returns a clean writeup instead of dozens of search calls) and a review agent (`brand-voice-reviewer`, checks a draft against what's actually published, not the aspirational brand doc).
 - `Log/` - one example entry showing the format (dated, newest on top, `CLOSED_` prefix only when nothing is left open).
 

@@ -28,6 +28,9 @@
 - `product-listing` - writes a new listing (title, description, price
   rationale) for an inventory item, following the house style and the
   current reference pricing bands. See `.claude/skills/product-listing/SKILL.md`.
+- `commitment-tracker` - pulls the owner's own follow-up commitments out
+  of call/meeting notes and logs confirmed ones to `TODO.md`. See
+  `.claude/skills/commitment-tracker/SKILL.md`.
 
 ## Custom agents
 
