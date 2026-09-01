@@ -108,3 +108,11 @@ impressive, say no to the rest out loud, and prove the one that gets built
 actually runs before calling it done. That loop works the same whether
 the raw input is a folder of videos, a stack of notes, or a person just
 describing what's annoying them.
+
+To be direct about it: "pull commitments out of notes and surface them" is
+not a novel idea on its own, a public search turns up several other
+`commitment-tracker` skills doing versions of it (auditing sent email and
+chat for unanswered messages, tracking vendor promises, and so on). What's
+shown here isn't the concept, it's the loop that produced it and the
+verification standard it had to clear before being called done, which is
+also why five of the six candidates from this session aren't in this repo.
