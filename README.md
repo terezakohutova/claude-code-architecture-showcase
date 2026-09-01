@@ -34,6 +34,15 @@ CLAUDE.md                    index only - short, links out, never grows
 
 **Why this order matters:** a correction starts as a one-off note in `Feedback/`. If it gets violated repeatedly despite being documented and re-read, that's the signal to promote it to a `.claude/hooks/` technical gate - a hook does not get tired of being polite about a rule. A procedure that needs the same 3+ steps every time it recurs stops being something to re-explain in every conversation and becomes a `SKILL.md`. A piece of work that's either heavy on tool calls (dozens of browser clicks, a long research fan-out) or needs a distinct kind of judgment (matching a brand's real voice vs. a formal style guide, holding a dispute's history) gets pulled out into its own `.claude/agents/*.md` - narrow tools, one job, returns a finished result instead of leaking hundreds of intermediate tool calls into the main conversation.
 
+## See it run
+
+Everything in `.claude/hooks/` and `.claude/skills/` here is real, working
+code, not illustration. [`examples/hook-verification.md`](examples/hook-verification.md)
+runs both hooks from a plain terminal, no Claude Code session required,
+and shows the actual allow/deny output. [`examples/sample-listing.md`](examples/sample-listing.md)
+is the unedited result of handing a fresh agent only the `product-listing`
+skill and the two inventory files, no expected output written first.
+
 ## What's in this repo
 
 - `CLAUDE.md`, `ORGANIZACE.md` - the index file and the methodology doc that explains how to build this structure on a new project (deliberately written to be copy-pasted elsewhere, it doesn't reference this specific example).
