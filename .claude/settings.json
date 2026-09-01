@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Glob|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/scope-guard.js",
+            "timeout": 10,
+            "statusMessage": "Checking scope guard..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/style-guard.js",
+            "timeout": 10,
+            "statusMessage": "Checking style guard..."
+          }
+        ]
+      }
+    ]
+  }
+}
