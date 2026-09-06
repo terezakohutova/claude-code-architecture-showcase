@@ -22,6 +22,9 @@
   (the hook covers a second banned pattern too - see that file).
 - Reads and writes stay inside this workspace folder - enforced by
   `.claude/hooks/scope-guard.js`.
+- A skill or agent's own definition causing a real problem mid-run gets
+  logged to [.claude/TUNING-LEDGER.md](.claude/TUNING-LEDGER.md), not just
+  worked around - see [Feedback/procedure-drift-logging.md](Feedback/procedure-drift-logging.md).
 
 ## Skills
 
@@ -38,3 +41,6 @@
   questions on a specific item, before it goes into a listing.
 - `brand-voice-reviewer` - checks a draft against the real, currently
   published voice (not the aspirational style guide).
+- `procedure-tuner` - reviews the skills and agents in this repo against
+  what they actually declare vs. use, triggered automatically off
+  `.claude/TUNING-LEDGER.md`.

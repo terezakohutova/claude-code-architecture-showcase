@@ -56,6 +56,22 @@ this repo, a fresh agent ran the skill for real on
 [`examples/sample-call-notes.md`](examples/sample-call-notes.md) and the
 unedited result is what's shown.
 
+## A second escalation path: friction observed at runtime
+
+The style-guard escalation above (soft rule -> repeated drift -> hard hook)
+only catches problems a hook can scan as content gets written. It doesn't
+catch a skill or agent's own definition quietly going stale - a tool grant
+copied from another file and never trimmed, a reference to something that
+got renamed. [`examples/self-tuning-session.md`](examples/self-tuning-session.md)
+walks through the second path: friction gets logged to
+`.claude/TUNING-LEDGER.md` the moment it's noticed
+(`Feedback/procedure-drift-logging.md`), a `SessionStart` hook
+(`.claude/hooks/tuning-ledger-check.js`) flags any unresolved line, and
+`procedure-tuner` reviews and fixes it. One real issue was deliberately
+seeded for the demo (a dead `Edit` grant on `inventory-researcher`) and a
+fresh agent, given only `procedure-tuner.md` as instructions, found it,
+fixed it, and closed out the ledger line - unedited report in that file.
+
 ## What's in this repo
 
 - `CLAUDE.md`, `ORGANIZACE.md` - the index file and the methodology doc that explains how to build this structure on a new project (deliberately written to be copy-pasted elsewhere, it doesn't reference this specific example).
@@ -63,7 +79,8 @@ unedited result is what's shown.
 - `.claude/hooks/` - the two hooks referenced above, in working form: `scope-guard.js` (a subagent or a careless edit should never be able to touch files outside the project root) and `style-guard.js` (the technical enforcement for the Feedback rule).
 - `.claude/skills/product-listing/` - one example of a recurring procedure written as a checklist skill, with a reference/status split for the data it depends on (`Inventory/`).
 - `.claude/skills/commitment-tracker/` - a second skill, this one produced by the self-extension session described above rather than written from a spec, plus `TODO.md` as the plain file it writes to.
-- `.claude/agents/` - two of the four custom agent archetypes that came out of the real workspace: a research agent (`inventory-researcher`, fans out web/data lookups with strict sourcing discipline and returns a clean writeup instead of dozens of search calls) and a review agent (`brand-voice-reviewer`, checks a draft against what's actually published, not the aspirational brand doc).
+- `.claude/agents/` - three of the four custom agent archetypes that came out of the real workspace: a research agent (`inventory-researcher`, fans out web/data lookups with strict sourcing discipline and returns a clean writeup instead of dozens of search calls), a review agent (`brand-voice-reviewer`, checks a draft against what's actually published, not the aspirational brand doc), and a self-tuning agent (`procedure-tuner`, reviews the other skills/agents in this repo against what they actually declare vs. use).
+- `.claude/TUNING-LEDGER.md` plus `.claude/hooks/tuning-ledger-check.js` - the second escalation path described above.
 - `Log/` - one example entry showing the format (dated, newest on top, `CLOSED_` prefix only when nothing is left open).
 
 ## What's deliberately left out
