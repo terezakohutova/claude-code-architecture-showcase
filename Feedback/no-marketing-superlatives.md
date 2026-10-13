@@ -56,10 +56,14 @@ does is make the next violation through the file tools impossible rather
 than unlikely.
 
 **Scope of the hook (and its blind spots):** it checks writes to
-customer-facing copy only (`Inventory/listings/`, `Copy/`, text formats),
-ignores quoted material (code spans, fenced blocks, blockquotes), and
-bans phrases rather than bare words where the word has an honest use
-("Revolutionary War era" passes). It cannot see copy that never goes
+customer-facing copy only (`Inventory/listings/`, `Copy/`, text formats,
+markdown cells of a notebook), ignores code spans and fenced blocks (a
+blockquote in a listing is still shown to the buyer, so it is checked),
+and bans phrases rather than bare words where the word has an honest use
+("Revolutionary War era" passes). The list itself is data, in
+[`banned-phrases.json`](banned-phrases.json): add a phrase there, with an
+example the test suite checks, and both the hook and
+`scripts/style-check.js` pick it up. It cannot see copy that never goes
 through the file tools: a Bash command writing a file, a browser
 automation typing into a marketplace form, an integration posting
 directly. This file is outside its scope by design, since it has to quote

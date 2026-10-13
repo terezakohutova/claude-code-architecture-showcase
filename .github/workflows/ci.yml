@@ -8,14 +8,36 @@ permissions:
   contents: read
 
 jobs:
+  # Fast lane: one Linux runner, current Node, every check, no retries.
+  # A real failure shows up here in about a minute.
+  fast:
+    name: fast / ubuntu / node 22
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: node scripts/style-check.js Brand/voice-examples.md
+
+  # Full Node range on Linux; macOS and Windows on Node 22 only, because
+  # the hooks' platform differences (path case, separators, drive letters)
+  # don't depend on the Node version, and fewer slow runners means fewer
+  # runner-side flakes. No step is retried or allowed to fail.
   test:
     name: ${{ matrix.os }} / node ${{ matrix.node }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         node: [18, 20, 22]
+        include:
+          - os: macos-latest
+            node: 22
+          - os: windows-latest
+            node: 22
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

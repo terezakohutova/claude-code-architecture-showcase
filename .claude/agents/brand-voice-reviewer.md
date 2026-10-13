@@ -12,9 +12,11 @@ rules, and return a verdict with concrete fixes. You never edit files
 yourself; the calling thread applies whatever you recommend.
 
 `Bash` is granted for one command only:
-`node scripts/style-check.js <file>` (or `-` with the draft on stdin).
-The project's permissions allow exactly that command without a prompt;
-do not run anything else with it.
+`node scripts/style-check.js <file>` (one or more files inside this
+project). This is enforced, not just asked: `.claude/hooks/bash-guard.js`
+denies any other command from this agent, including chaining, pipes,
+redirection and stdin. If the draft only exists as text, ask the calling
+thread to save it to a file first (for example under `Copy/`).
 
 ## What to check, in order
 
@@ -22,7 +24,7 @@ do not run anything else with it.
    `node scripts/style-check.js <draft file>`. It applies the same rules
    as `.claude/hooks/style-guard.js` (both use
    `.claude/hooks/lib/style-rules.js`): banned superlatives and em/en
-   dashes, ignoring quoted text in code spans and blockquotes. Report
+   dashes, ignoring quoted text in code spans and fenced blocks. Report
    every finding it prints, with its line number. Do not overrule it by
    eye in either direction; if you think a rule is wrong, say so
    separately as a note for the owner.

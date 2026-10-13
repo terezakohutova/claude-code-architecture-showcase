@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // PreToolUse hook: before an Edit/Write touches one of the files the
 // workspace's behaviour depends on (agent definitions, skills, Feedback
-// rules, CLAUDE.md, the tuning ledger), copy the current content to
+// rules and the banned-phrase list, CLAUDE.md, the tuning ledger, the
+// settings files and the hooks themselves), copy the current content to
 // .versions/<path>/<UTC timestamp><ext>. A rule or an agent prompt that got
 // "improved" into something worse can then be put back exactly, instead of
 // being reconstructed from memory.
@@ -11,9 +12,11 @@
 // most of them. .versions/ is git-ignored and pruned; it is a short-term
 // undo, not history.
 //
-// Registered in .claude/settings.json on the "Edit|Write|NotebookEdit"
-// matcher. It never blocks: whatever happens, it writes nothing to stdout
-// and exits 0, so a versioning problem can't stop real work.
+// Registered in .claude/settings.json on the
+// "Edit|Write|MultiEdit|NotebookEdit" matcher. It never blocks: whatever
+// happens, it writes nothing to stdout and exits 0, so a versioning
+// problem can't stop real work (GUARD_FAIL_CLOSED does not apply here;
+// this hook is not a guard).
 //
 // Behaviour:
 //   - A new version is written only when the content differs from the
@@ -53,7 +56,12 @@ const PROTECTED = [
   /^\.claude\/agents\/[^/]+\.md$/,
   /^\.claude\/skills\/[^/]+\/SKILL\.md$/,
   /^\.claude\/TUNING-LEDGER\.md$/,
-  /^Feedback\/.+\.md$/,
+  /^Feedback\/.+\.(md|json)$/,
+  // The guardrails. scope-guard and the settings deny rules stop the agent
+  // from writing these, but this hook still runs before that decision, and
+  // a copy of the last good version costs nothing.
+  /^\.claude\/settings(\.local)?\.json$/,
+  /^\.claude\/hooks\/.+$/,
 ];
 
 function keepLimit() {

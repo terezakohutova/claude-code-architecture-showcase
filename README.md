@@ -9,8 +9,9 @@ cross-platform sync). Every business detail here is fictional, a made-up
 vintage-reselling shop called "Marlowe and Finch". The structure, the hooks
 and the design decisions are the real ones.
 
-The four hooks run in Claude Code and are covered by a test suite that CI
-runs on Linux, macOS and Windows with Node 18, 20 and 22. One example has
+The five hooks run in Claude Code and are covered by a test suite that CI
+runs on Linux with Node 18, 20 and 22, and on macOS and Windows with
+Node 22. One example has
 a saved session transcript: a headless Claude Code run in which the hooks
 blocked and allowed what they should
 ([`examples/hook-verification.md`](examples/hook-verification.md)). The
@@ -18,7 +19,7 @@ other examples are reports from agent runs whose transcripts were not
 kept; each one says so.
 
 ```
-npm test            # 73 tests (hooks, style check, settings) + docs check (Node 18.17+, no dependencies)
+npm test            # hook, style check and settings tests + docs check (Node 18.17+, no dependencies)
 ```
 
 ## The problem this solves
@@ -71,12 +72,13 @@ back instead of hundreds of intermediate tool calls in the main thread.
 Registered in [`.claude/settings.json`](.claude/settings.json), plain Node,
 no dependencies.
 
-| Hook | Event / matcher | What it does |
-|---|---|---|
-| [`scope-guard.js`](.claude/hooks/scope-guard.js) | PreToolUse, `Read\|Edit\|Write\|NotebookEdit\|Glob\|Grep` | Denies a file tool call whose target resolves outside the project folder: absolute paths, `../` traversal (resolved against the session's cwd), `~`, symlinks that point out, and Glob patterns and Grep `glob` filters, relative or absolute, including a `..` after a wildcard. Claude Code's own working files are allow-listed (below). |
-| [`style-guard.js`](.claude/hooks/style-guard.js) | PreToolUse, `Edit\|Write\|NotebookEdit` | Denies writing a banned superlative or an em/en dash into customer-facing copy (`Inventory/listings/`, `Copy/`). The hard half of [a Feedback rule](Feedback/no-marketing-superlatives.md). |
-| [`version-snapshot.js`](.claude/hooks/version-snapshot.js) | PreToolUse, `Edit\|Write\|NotebookEdit` | Copies the current content of a rule, agent, skill or `CLAUDE.md` to `.versions/` before it changes, only when it differs from the last copy, and keeps the newest 20 per file. Never blocks. |
-| [`tuning-ledger-check.js`](.claude/hooks/tuning-ledger-check.js) | SessionStart, `startup` | If [the tuning ledger](.claude/TUNING-LEDGER.md) has an open line, tells a new session to raise it and offer `procedure-tuner`. Not on resume, `/clear` or compaction. |
+| Hook | Event / matcher | What it does | On malformed input or internal error |
+|---|---|---|---|
+| [`scope-guard.js`](.claude/hooks/scope-guard.js) | PreToolUse, `Read|Edit|Write|MultiEdit|NotebookEdit|Glob|Grep` | Denies a file tool call whose target resolves outside the project folder: absolute paths, `../` traversal (resolved against the session's cwd), `~`, symlinks that point out, and Glob patterns and Grep `glob` filters, relative or absolute, including a `..` after a wildcard. Brace alternatives (`{a,{b,c}}`) are expanded and each one is checked. Also denies any write to `.claude/settings.json`, the per-user `settings.local.json` next to it and `.claude/hooks/`, so the agent can't switch its own guardrails off. Claude Code's own working files are allow-listed (below). | Open |
+| [`style-guard.js`](.claude/hooks/style-guard.js) | PreToolUse, `Edit|Write|MultiEdit|NotebookEdit` | Denies writing a banned superlative ([`Feedback/banned-phrases.json`](Feedback/banned-phrases.json)) or an em/en dash into customer-facing copy (`Inventory/listings/`, `Copy/`; folder names compared without case on Windows and macOS). In a notebook only markdown cells are checked. The hard half of [a Feedback rule](Feedback/no-marketing-superlatives.md). | Open |
+| [`bash-guard.js`](.claude/hooks/bash-guard.js) | PreToolUse, `Bash` | Inside the `brand-voice-reviewer` subagent (identified by the hook input's `agent_type`), allows only `node scripts/style-check.js <file>...` on files in the project and denies every other command. Silent everywhere else. | Open |
+| [`version-snapshot.js`](.claude/hooks/version-snapshot.js) | PreToolUse, `Edit|Write|MultiEdit|NotebookEdit` | Copies the current content of a rule, agent, skill, `CLAUDE.md`, a settings file or a hook to `.versions/` before it changes, only when it differs from the last copy, and keeps the newest 20 per file. | Never blocks |
+| [`tuning-ledger-check.js`](.claude/hooks/tuning-ledger-check.js) | SessionStart, `startup` | If [the tuning ledger](.claude/TUNING-LEDGER.md) has an open line, tells a new session to raise it and offer `procedure-tuner`. Not on resume, `/clear` or compaction. | No output |
 
 The rules `style-guard` applies live in
 [`.claude/hooks/lib/style-rules.js`](.claude/hooks/lib/style-rules.js),
@@ -88,8 +90,17 @@ A deny is the documented PreToolUse decision on stdout
 (`hookSpecificOutput.permissionDecision: "deny"` plus a reason Claude sees).
 Anything allowed gets no output at all, so Claude Code's normal permission
 prompts still apply; a guard that answered "allow" would silently approve
-every file call. A malformed payload makes a hook exit 0 without output: a
-broken guard should not stop all work.
+every file call. **Fail-open, on purpose, with a switch.** If a guard gets a payload that
+is not valid JSON, or fails internally (a bug, a missing
+`Feedback/banned-phrases.json`), it writes the error to stderr and exits
+0 without output, so the call goes on to the normal permission flow
+("Open" in the last column). Claude Code always sends valid JSON, so a
+parse failure means the guard is broken, and a broken guard that blocks
+every file and shell call also blocks the session that would fix it. Set
+`GUARD_FAIL_CLOSED=1` in the environment to turn every such error into a
+deny instead. The shared code is in
+[`.claude/hooks/lib/hook-io.js`](.claude/hooks/lib/hook-io.js); both
+behaviours have tests.
 
 ### What scope-guard lets out of the folder, on purpose
 
@@ -102,38 +113,70 @@ narrow:
 
 | Where | Allowed |
 |---|---|
-| `<config>/projects/`, `<config>/plans/`, `<config>/todos/` | read and write |
+| `<config>/projects/<this project>/`, `<config>/plans/`, `<config>/todos/` | read and write |
+| other projects' folders under `<config>/projects/` | denied |
 | `<config>/skills/`, `<config>/agents/`, `<config>/commands/`, `<config>/CLAUDE.md` | read only |
 | `<OS temp>/claude` and `<OS temp>/claude-*` | read and write |
 | anything else under `<config>` (settings, credentials, history) | denied |
 
-`<config>` is `$CLAUDE_CONFIG_DIR` if set, otherwise `~/.claude`. Each row
-has a test in [`tests/hooks.test.js`](tests/hooks.test.js).
+`<config>` is `$CLAUDE_CONFIG_DIR` if set, otherwise `~/.claude`.
+`<this project>` is the folder name Claude Code derives from the project
+path, every character other than a letter or digit replaced by `-`
+(`C:\Users\me\My_Shop` becomes `C--Users-me-My-Shop`; checked against the
+folder names Claude Code had created on a Windows machine), plus the folder
+that holds the current session's `transcript_path`. Each row has a test in
+[`tests/hooks.test.js`](tests/hooks.test.js).
 
 ## Hooks and permissions together
 
-The hooks only see the file tools. [`.claude/settings.json`](.claude/settings.json)
+The hooks see the file tools and, for one agent, Bash. [`.claude/settings.json`](.claude/settings.json)
 also has a `permissions` block (and a `$schema` line, so an editor
 validates it):
 
 - **deny**: network tools in Bash (`curl`, `wget`, `ssh`, `scp`, `rsync`,
   `nc`), `git push`, `rm -rf`, `sudo`, and reading `.env` files, `~/.ssh`
-  and `~/.aws`.
+  and `~/.aws`; and `Edit`, `Write` and `MultiEdit` on the settings files
+  and `.claude/hooks/**`. Together with `scope-guard` denying the same
+  writes, the rules that limit the agent can only be changed by a person
+  editing the files outside Claude Code.
 - **allow** without a prompt: the test and check scripts, the one command
   `brand-voice-reviewer` needs (`node scripts/style-check.js`), and
   read-only git (`status`, `diff`, `log`).
 
 How the two layers split the outside-folder problem: `scope-guard` closes
-it for `Read`, `Edit`, `Write`, `NotebookEdit`, `Glob` and `Grep`, which is
+it for `Read`, `Edit`, `Write`, `MultiEdit`, `NotebookEdit`, `Glob` and `Grep`, which is
 how Claude touches files nearly all the time. The deny rules take away the
 obvious Bash routes out (network, destructive commands, secrets), and
 every other Bash command still needs the user's approval, because only
 the commands above are pre-allowed. What remains is a Bash command the
 user approves, such as `cat ../other/file`: prefix rules can't express
 "inside this folder", and Claude Code's docs say Bash argument rules are
-easy to get around. If that matters, run Claude Code with its sandbox,
-which restricts what Bash can reach at the OS level. Together this is a
-set of guardrails, not a security boundary.
+easy to get around.
+
+**Permissions are not a sandbox.** A prefix deny such as `Bash(curl:*)`
+is matched against the command text, so the same request made another
+way (another binary, a script, an interpreter one-liner the user
+approves) is not caught. `bash-guard` narrows this for
+`brand-voice-reviewer` with an exact allow-list instead of a deny-list,
+but the main thread is still limited only by what the user approves. For
+an OS-level boundary, use Claude Code's sandbox, which restricts the
+files and hosts shell commands can reach while they run (macOS, Linux and
+WSL2; on native Windows commands run unsandboxed, so use WSL2 or a
+container there). [`examples/settings.sandbox.json`](examples/settings.sandbox.json)
+is a starting point: merge it into `.claude/settings.json` or
+the per-user `settings.local.json` to turn the sandbox on, block reads in the
+home folder except this project, and refuse the unsandboxed fallback. It
+is kept out of the active settings because CI and the saved session ran
+on Windows without it. The sandbox also write-protects `.claude`
+settings and hooks for shell commands, which covers the Bash route the
+deny rules above leave open. Together this is a set of guardrails, not a
+security boundary.
+
+`bash-guard` depends on the `agent_type` field Claude Code puts in hook
+input inside a subagent. A version that does not send it looks like the
+main thread, and the hook then lets the normal permission flow decide;
+if that happens, move the same check into the agent's own `hooks:`
+frontmatter, which only runs while that agent is active.
 
 One thing seen in the session in `examples/`: Claude Code ignores a
 project's `permissions.allow` entries until the folder has been trusted
@@ -211,20 +254,24 @@ exists.
 ## Limitations, stated plainly
 
 - `scope-guard` covers the file tools. A `Bash` command the user approves
-  can still read or write outside the folder (see "Hooks and permissions
+  can still read or write outside the folder, or rewrite a hook, (see "Hooks and permissions
   together"). The hook is a guardrail against careless calls, not a
   security boundary.
 - `style-guard` sees only what goes through `Write`, `Edit` and
-  `NotebookEdit` into the copy folders. It cannot see a Bash command
+  `MultiEdit` and `NotebookEdit` into the copy folders. It cannot see a Bash command
   writing a file, a browser automation typing into a marketplace form, or
   an integration posting directly; copy that leaves that way is checked
   only if someone runs `scripts/style-check.js` on it (as
   `brand-voice-reviewer` does). Its list is phrase-level regex, not
-  language understanding: it skips quoted text and known honest uses
+  language understanding: it skips code spans and known honest uses
   ("Revolutionary War era"), and will still miss a superlative it doesn't
   list.
 - The hooks need `node` on `PATH`. They were run in Claude Code 2.1.296 on
-  Windows 11 and are tested on Linux, macOS and Windows in CI.
+  Windows 11 (the version is in the `init` line of
+  [the saved transcript](examples/transcripts/2026-10-13-hooks-session.jsonl))
+  and are tested on Linux, macOS and Windows in CI. That session predates
+  `bash-guard` and the guardrail-file denies; those are covered by the
+  test suite only, not yet by a recorded session.
 
 ## What's in this repo
 
@@ -232,8 +279,10 @@ exists.
   index file, and the method for building this structure on a new project
   (generic on purpose, it doesn't reference this example).
 - [`Feedback/`](Feedback/INDEX.md) - two rules: the style rule that got
-  escalated to a hook, and the rule that feeds the tuning ledger.
-- [`.claude/hooks/`](.claude/hooks) - the four hooks above.
+  escalated to a hook (its banned list is data, in
+  [`Feedback/banned-phrases.json`](Feedback/banned-phrases.json)), and the
+  rule that feeds the tuning ledger.
+- [`.claude/hooks/`](.claude/hooks) - the five hooks above.
 - [`.claude/skills/`](.claude/skills) - `product-listing`, a recurring
   procedure as a checklist (Draft -> Ready for review; Live only once a
   person has posted it), with a reference/status split for the data it
@@ -255,8 +304,9 @@ exists.
 
 ## What's deliberately left out
 
-The real workspace has four independent sub-projects, about 40 skills,
-several mail/notes/browser-automation integrations, and a lot of
+The real workspace is larger than this extract: more sub-projects, skills
+and integrations (mail, notes, browser automation), none of which is
+shown here, so no size is claimed for it. It also holds a lot of
 business-specific detail (pricing, supplier names, dispute history) that has
 no business being public. This repo keeps enough of the shape to be useful
 as a reference, not a copy of anything real.

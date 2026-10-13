@@ -1,0 +1,25 @@
+{
+  "about": "Hollow superlatives banned in customer-facing copy. Read by .claude/hooks/lib/style-rules.js, so the style-guard hook and scripts/style-check.js use this one list. pattern is a JavaScript regular expression, matched case-insensitively; example must match it (a test checks). Phrase-level where the bare word has an honest use in this trade, see Feedback/no-marketing-superlatives.md.",
+  "phrases": [
+    { "label": "best in class", "pattern": "\\bbest[- ]in[- ]class\\b", "example": "best-in-class" },
+    { "label": "revolutionary", "pattern": "\\brevolutionary\\b(?!\\s+(war|era|period|army|france|french|america|american)\\b)", "example": "revolutionary" },
+    { "label": "game changer", "pattern": "\\bgame[- ]chang(er|ers|ing)\\b", "example": "game-changing" },
+    { "label": "must-have", "pattern": "\\b(?:(?:a|an|the|this|your|real|true|ultimate|absolute)\\s+must[- ]have|must[- ]have\\s+(?:piece|item|addition|accessory|for))\\b", "example": "a must-have piece" },
+    { "label": "unparalleled", "pattern": "\\bunparalleled\\b", "example": "unparalleled" },
+    { "label": "world-class", "pattern": "\\bworld[- ]class\\b", "example": "world-class" },
+    { "label": "iconic", "pattern": "\\biconic\\b", "example": "iconic" },
+    { "label": "finest", "pattern": "\\bfinest\\b", "example": "the finest" },
+    { "label": "incredible", "pattern": "\\bincredibl[ey]\\b", "example": "incredible" },
+    { "label": "unmatched", "pattern": "\\bunmatched\\b", "example": "unmatched" },
+    { "label": "cutting-edge", "pattern": "\\bcutting[- ]edge\\b", "example": "cutting-edge" },
+    { "label": "unrivalled", "pattern": "\\bunrivall?ed\\b", "example": "unrivalled" },
+    { "label": "second to none", "pattern": "\\bsecond[- ]to[- ]none\\b", "example": "second to none" },
+    { "label": "top-notch", "pattern": "\\btop[- ]notch\\b", "example": "top-notch" },
+    { "label": "state-of-the-art", "pattern": "\\bstate[- ]of[- ]the[- ]art\\b", "example": "state-of-the-art" },
+    { "label": "breathtaking", "pattern": "\\bbreath[- ]?taking\\b", "example": "breathtaking" },
+    { "label": "jaw-dropping", "pattern": "\\bjaw[- ]dropping\\b", "example": "jaw-dropping" },
+    { "label": "once in a lifetime", "pattern": "\\bonce[- ]in[- ]a[- ]lifetime\\b", "example": "once-in-a-lifetime" },
+    { "label": "unbeatable", "pattern": "\\bunbeatable\\b", "example": "unbeatable" },
+    { "label": "stunning", "pattern": "\\bstunning\\b", "example": "stunning" }
+  ]
+}

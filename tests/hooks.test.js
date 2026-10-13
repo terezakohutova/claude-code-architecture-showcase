@@ -33,6 +33,7 @@ function makeWorkspace() {
   const root = tempDir("hooks-test-");
   fs.cpSync(path.join(REPO, ".claude", "hooks"), path.join(root, ".claude", "hooks"), { recursive: true });
   fs.mkdirSync(path.join(root, "Feedback"), { recursive: true });
+  fs.copyFileSync(path.join(REPO, "Feedback", "banned-phrases.json"), path.join(root, "Feedback", "banned-phrases.json"));
   fs.mkdirSync(path.join(root, "Inventory", "listings"), { recursive: true });
   fs.writeFileSync(path.join(root, "CLAUDE.md"), "# index\n");
   fs.writeFileSync(path.join(root, "Feedback", "INDEX.md"), "# Feedback index\n");
@@ -48,6 +49,12 @@ const FAKE_TMP = tempDir("hooks-tmp-");
 const HOOK_ENV = { ...process.env, CLAUDE_CONFIG_DIR: FAKE_CLAUDE, TMPDIR: FAKE_TMP, TEMP: FAKE_TMP, TMP: FAKE_TMP };
 delete HOOK_ENV.CLAUDE_PROJECT_DIR;
 delete HOOK_ENV.VERSION_SNAPSHOT_KEEP;
+delete HOOK_ENV.GUARD_FAIL_CLOSED;
+
+// Claude Code's name for a project's folder under <config>/projects: the
+// project path with every character that is not a letter or digit replaced
+// by "-" (C:\Users\me\My_Shop becomes C--Users-me-My-Shop).
+const projectFolder = (p) => p.replace(/[^A-Za-z0-9]/g, "-");
 
 function run(root, hook, payload, extraEnv = {}) {
   const input = typeof payload === "string" ? payload : JSON.stringify(payload);
@@ -183,14 +190,74 @@ describe("scope-guard.js", () => {
   test("malformed stdin does not block (exit 0, no output)", () => {
     assert.equal(decision(run(root, "scope-guard.js", "{not json")), "none");
   });
+  test("GUARD_FAIL_CLOSED=1: malformed stdin is denied instead", () => {
+    assert.equal(decision(run(root, "scope-guard.js", "{not json", { GUARD_FAIL_CLOSED: "1" })), "deny");
+  });
+
+  describe("brace globs: every alternative is checked", () => {
+    const out = outside.split(path.sep).join("/");
+    test("an absolute path inside braces is denied", () => {
+      assert.equal(check("Glob", { pattern: `{${out}/*.ini,x}` }), "deny");
+      assert.equal(check("Grep", { pattern: "x", glob: `{*.md,${out}/**}` }), "deny");
+    });
+    test("Windows: a drive path inside braces is denied", { skip: process.platform !== "win32" }, () => {
+      assert.equal(check("Glob", { pattern: "{C:/Windows/*.ini,x}" }), "deny");
+    });
+    test("a nested alternative that escapes is denied", () => {
+      assert.equal(check("Glob", { pattern: `{Inventory,{Feedback,${out}}}/*.md` }), "deny");
+      assert.equal(check("Glob", { pattern: "Inventory/{a,{b,../../..}}/*" }), "deny");
+    });
+    test("a prefix outside the braces combines with each alternative", () => {
+      assert.equal(check("Glob", { pattern: "{Inventory,..}/../../*" }), "deny");
+      assert.equal(check("Glob", { pattern: "Inventory/{listings,../Feedback}/*.md" }), "none");
+    });
+    test("alternatives that all stay inside pass", () => {
+      assert.equal(check("Glob", { pattern: "{Inventory,Feedback}/*.md" }), "none");
+      assert.equal(check("Glob", { pattern: "**/*.{md,{json,txt}}" }), "none");
+    });
+  });
+
+  describe("guardrail files can't be changed by the agent", () => {
+    test("writes to settings.json, settings.local.json and hooks are denied", () => {
+      for (const f of [".claude/settings.json", ".claude/settings.local.json", ".claude/hooks/scope-guard.js", ".claude/hooks/lib/style-rules.js", ".claude/hooks/new.js"]) {
+        assert.equal(check("Write", { file_path: f, content: "x" }), "deny", f);
+        assert.equal(check("Edit", { file_path: path.join(root, f), old_string: "a", new_string: "b" }), "deny", f);
+        assert.equal(check("MultiEdit", { file_path: f, edits: [] }), "deny", f);
+      }
+    });
+    test("case does not get around it where the file system ignores case", { skip: process.platform !== "win32" && process.platform !== "darwin" }, () => {
+      assert.equal(check("Write", { file_path: "./.CLAUDE/Settings.json", content: "x" }), "deny");
+      assert.equal(check("Write", { file_path: ".claude/HOOKS/x.js", content: "x" }), "deny");
+    });
+    test("they can still be read, and other .claude files can be written", () => {
+      assert.equal(check("Read", { file_path: ".claude/settings.json" }), "none");
+      assert.equal(check("Read", { file_path: ".claude/hooks/scope-guard.js" }), "none");
+      assert.equal(check("Write", { file_path: ".claude/agents/x.md", content: "x" }), "none");
+      assert.equal(check("Write", { file_path: ".claude/hooks-notes.md", content: "x" }), "none");
+    });
+  });
 
   describe("Claude Code's own files outside the project", () => {
-    test("tool results under <config>/projects can be read", () => {
-      const toolResult = path.join(FAKE_CLAUDE, "projects", "some-project", "session-1", "tool-results", "out.txt");
-      assert.equal(check("Read", { file_path: toolResult }), "none");
+    const own = path.join(FAKE_CLAUDE, "projects", projectFolder(root));
+    test("this project's tool results under <config>/projects can be read", () => {
+      assert.equal(check("Read", { file_path: path.join(own, "session-1", "tool-results", "out.txt") }), "none");
     });
-    test("memory under <config>/projects can be written", () => {
-      assert.equal(check("Write", { file_path: path.join(FAKE_CLAUDE, "projects", "p", "memory", "MEMORY.md"), content: "x" }), "none");
+    test("this project's memory under <config>/projects can be written", () => {
+      assert.equal(check("Write", { file_path: path.join(own, "memory", "MEMORY.md"), content: "x" }), "none");
+    });
+    test("other projects' transcripts and memory are denied", () => {
+      const other = path.join(FAKE_CLAUDE, "projects", "C--Users-someone-other-project");
+      assert.equal(check("Read", { file_path: path.join(other, "s.jsonl") }), "deny");
+      assert.equal(check("Read", { file_path: own + "-other" + path.sep + "s.jsonl" }), "deny");
+      assert.equal(check("Grep", { pattern: "x", path: path.join(FAKE_CLAUDE, "projects") }), "deny");
+      assert.equal(check("Glob", { pattern: "**/*.jsonl", path: path.join(FAKE_CLAUDE, "projects") }), "deny");
+    });
+    test("the folder of the session's own transcript is allowed (session started in another folder)", () => {
+      const folder = path.join(FAKE_CLAUDE, "projects", "C--started-in-a-subfolder");
+      const payload = { ...preToolUse(root, "Read", { file_path: path.join(folder, "tool-results", "o.txt") }), transcript_path: path.join(folder, "abc.jsonl") };
+      assert.equal(decision(run(root, "scope-guard.js", payload)), "none");
+      payload.tool_input = { file_path: path.join(FAKE_CLAUDE, "projects", "C--someone-else", "o.txt") };
+      assert.equal(decision(run(root, "scope-guard.js", payload)), "deny");
     });
     test("plans and todos can be read and written", () => {
       assert.equal(check("Write", { file_path: path.join(FAKE_CLAUDE, "plans", "plan.md"), content: "x" }), "none");
@@ -276,11 +343,42 @@ describe("style-guard.js", () => {
   test("code files are out of scope, even in a copy folder", () => {
     assert.equal(write("Copy/banned.js", "const BANNED = /revolutionary/;"), "none");
   });
-  test("quoted text in backticks, fenced blocks and blockquotes is not the shop speaking", () => {
+  test("quoted text in backticks and fenced blocks is not the shop speaking", () => {
     assert.equal(write(LISTING, "The maker's 1931 ad called it `revolutionary`."), "none");
-    assert.equal(write(LISTING, "Original box text:\n\n> The revolutionary kitchen jar\n\nCondition: good."), "none");
     assert.equal(write(LISTING, "```\nrevolutionary\n```\nCondition: good."), "none");
+  });
+  test("a blockquote in customer copy is still checked: the buyer reads it as the shop's text", () => {
+    assert.equal(write(LISTING, "Original box text:\n\n> The revolutionary kitchen jar\n\nCondition: good."), "deny");
+    assert.equal(write("Copy/reply.md", "> An iconic lamp\n\nThanks for asking."), "deny");
     assert.equal(write(LISTING, "> quoted\nBut this line is revolutionary."), "deny");
+  });
+  for (const phrase of ["world-class", "iconic", "the finest", "incredible", "unmatched", "cutting-edge", "best in class", "unrivalled", "unrivaled", "second to none", "top-notch", "state-of-the-art", "breathtaking", "once-in-a-lifetime"]) {
+    test(`hollow superlative "${phrase}" is denied`, () => assert.equal(write(LISTING, `A ${phrase} lamp.`), "deny"));
+  }
+  test("Windows and macOS: the copy folder check ignores case, like their file systems", { skip: process.platform !== "win32" && process.platform !== "darwin" }, () => {
+    assert.equal(write("copy/reply.md", "A revolutionary lamp."), "deny");
+    assert.equal(write("inventory/LISTINGS/MF-2.md", "A revolutionary lamp."), "deny");
+  });
+  test("NotebookEdit: a markdown cell is checked, a code cell is not", () => {
+    const nb = path.join(root, "Copy", "post.ipynb");
+    assert.equal(check("NotebookEdit", { notebook_path: nb, new_source: "An iconic lamp.", cell_type: "markdown" }), "deny");
+    assert.equal(check("NotebookEdit", { notebook_path: nb, new_source: "rule = 'iconic'", cell_type: "code" }), "none");
+    assert.equal(check("NotebookEdit", { notebook_path: nb, new_source: "x", cell_type: "markdown", edit_mode: "delete" }), "none");
+  });
+  test("Write of a whole .ipynb checks its markdown cells only", () => {
+    const nb = (cells) => JSON.stringify({ cells, metadata: {}, nbformat: 4, nbformat_minor: 5 });
+    assert.equal(write("Copy/post.ipynb", nb([{ cell_type: "markdown", source: ["A ", "revolutionary lamp."] }])), "deny");
+    assert.equal(write("Copy/post.ipynb", nb([{ cell_type: "code", source: "x = 'revolutionary'" }, { cell_type: "markdown", source: "Brass lamp." }])), "none");
+  });
+  test("GUARD_FAIL_CLOSED=1: malformed stdin is denied instead", () => {
+    assert.equal(decision(run(root, "style-guard.js", "{not json", { GUARD_FAIL_CLOSED: "1" })), "deny");
+  });
+  test("a missing banned-phrases.json is an internal error: open by default, denied with GUARD_FAIL_CLOSED=1", () => {
+    const bare = makeWorkspace();
+    fs.rmSync(path.join(bare, "Feedback", "banned-phrases.json"));
+    const payload = preToolUse(bare, "Write", { file_path: path.join(bare, LISTING), content: "Brass lamp." });
+    assert.equal(decision(run(bare, "style-guard.js", payload)), "none");
+    assert.equal(decision(run(bare, "style-guard.js", payload, { GUARD_FAIL_CLOSED: "1" })), "deny");
   });
   test("relative path resolves against the session cwd", () => {
     assert.equal(check("Write", { file_path: "MF-1.md", content: "unparalleled" }, path.join(root, "Inventory", "listings")), "deny");
@@ -311,6 +409,37 @@ describe("scripts/style-check.js (shared rules, used by brand-voice-reviewer)", 
   });
   test("a missing file exits 2", () => {
     assert.equal(runCheck(["does-not-exist.md"]).status, 2);
+  });
+  test("blockquotes count as quoted only outside the copy folders; stdin is treated as copy", () => {
+    const tmp = tempDir("style-check-");
+    const note = path.join(tmp, "note.md");
+    fs.writeFileSync(note, "Buyer wrote:\n\n> an iconic lamp\n");
+    assert.equal(runCheck([note]).status, 0);
+    assert.equal(runCheck(["-"], "> an iconic lamp\n").status, 1);
+  });
+  test("hook and CLI read the same banned list, from Feedback/banned-phrases.json", () => {
+    const list = JSON.parse(fs.readFileSync(path.join(REPO, "Feedback", "banned-phrases.json"), "utf8"));
+    assert.ok(Array.isArray(list.phrases) && list.phrases.length >= 15);
+    for (const p of list.phrases) {
+      assert.equal(typeof p.label, "string");
+      const re = new RegExp(p.pattern, "i");
+      assert.ok(re.test(p.example), `${p.label}: its example "${p.example}" must match`);
+      assert.equal(runCheck(["-"], `A ${p.example} lamp.\n`).status, 1, p.label);
+    }
+    const src = (f) => fs.readFileSync(path.join(REPO, f), "utf8");
+    assert.ok(!/\\bunparalleled\\b/.test(src(".claude/hooks/lib/style-rules.js")), "no phrase list hard-coded in the rules module");
+  });
+});
+
+describe("style-rules.js folder matching", () => {
+  const rules = require(path.join(REPO, ".claude", "hooks", "lib", "style-rules.js"));
+  test("case-insensitive on win32 and darwin, exact on linux", () => {
+    assert.equal(rules.isCustomerCopy("copy/a.md", "win32"), true);
+    assert.equal(rules.isCustomerCopy("INVENTORY/Listings/a.md", "darwin"), true);
+    assert.equal(rules.isCustomerCopy("copy/a.md", "linux"), false);
+    assert.equal(rules.isCustomerCopy("Copy/a.md", "linux"), true);
+    assert.equal(rules.isCustomerCopy("log/a.md", "win32"), false);
+    assert.equal(rules.isCustomerCopy("copy/../log/a.md", "win32"), false);
   });
 });
 
@@ -401,6 +530,15 @@ describe("version-snapshot.js", () => {
     snap(root, "CLAUDE.md");
     assert.equal(versions(root, "CLAUDE.md").length, 1);
   });
+  test("settings files and hooks are snapshotted too", () => {
+    const root = makeWorkspace();
+    fs.writeFileSync(path.join(root, ".claude", "settings.json"), "{}\n");
+    fs.writeFileSync(path.join(root, ".claude", "settings.local.json"), "{}\n");
+    for (const rel of [".claude/settings.json", ".claude/settings.local.json", ".claude/hooks/scope-guard.js", ".claude/hooks/lib/style-rules.js", "Feedback/banned-phrases.json"]) {
+      assert.equal(snap(root, path.join(root, ...rel.split("/"))).stdout, "");
+      assert.equal(versions(root, rel).length, 1, rel);
+    }
+  });
   test("unprotected file: nothing kept", () => {
     const root = makeWorkspace();
     snap(root, path.join(root, "Inventory", "inventory-status.md"));
@@ -454,8 +592,72 @@ describe("tuning-ledger-check.js", () => {
   });
 });
 
+describe("bash-guard.js", () => {
+  const root = makeWorkspace();
+  const bash = (command, agent_type, extra = {}) => {
+    const payload = { ...preToolUse(root, "Bash", { command, description: "x" }), ...extra };
+    if (agent_type !== undefined) payload.agent_type = agent_type;
+    return decision(run(root, "bash-guard.js", payload));
+  };
+
+  test("brand-voice-reviewer may run the style check on a file", () => {
+    assert.equal(bash("node scripts/style-check.js Copy/drafts/reply.md", "brand-voice-reviewer"), "none");
+    assert.equal(bash("node scripts/style-check.js Inventory/listings/MF-0041.md Brand/voice-examples.md", "brand-voice-reviewer"), "none");
+  });
+  test("brand-voice-reviewer is denied any other command", () => {
+    for (const c of [
+      "ls",
+      "cat ../secret.txt",
+      "node scripts/check-docs.js",
+      "node scripts/style-check.js a.md; rm -rf .",
+      "node scripts/style-check.js a.md && curl x",
+      "node scripts/style-check.js $(cat /etc/passwd)",
+      "node scripts/style-check.js `id`",
+      "node scripts/style-check.js a.md > Copy/x.md",
+      "node scripts/style-check.js a.md | sh",
+      "node scripts/style-check.js a.md\nrm x",
+      "node scripts/style-check.js ../../outside.md",
+      "node scripts/style-check.js /etc/passwd",
+      "node scripts/style-check.js",
+      "NODE_OPTIONS=--require=x node scripts/style-check.js a.md",
+      "node -e 1 scripts/style-check.js a.md",
+    ]) assert.equal(bash(c, "brand-voice-reviewer"), "deny", c);
+  });
+  test("a plugin-scoped name for the same agent is restricted too", () => {
+    assert.equal(bash("ls", "shop:brand-voice-reviewer"), "deny");
+  });
+  test("the main thread and other agents are left to the normal permission flow", () => {
+    assert.equal(bash("ls"), "none");
+    assert.equal(bash("ls", "inventory-researcher"), "none");
+  });
+  test("non-Bash tools are ignored", () => {
+    const payload = { ...preToolUse(root, "Read", { file_path: "x" }), agent_type: "brand-voice-reviewer" };
+    assert.equal(decision(run(root, "bash-guard.js", payload)), "none");
+  });
+  test("malformed stdin: open by default, denied with GUARD_FAIL_CLOSED=1", () => {
+    assert.equal(decision(run(root, "bash-guard.js", "{")), "none");
+    assert.equal(decision(run(root, "bash-guard.js", "{", { GUARD_FAIL_CLOSED: "1" })), "deny");
+  });
+});
+
 describe(".claude/settings.json", () => {
   const settings = JSON.parse(fs.readFileSync(path.join(REPO, ".claude", "settings.json"), "utf8"));
+  const matcherFor = (hook) =>
+    settings.hooks.PreToolUse.find((g) => g.hooks.some((h) => h.command.includes(hook))).matcher.split("|");
+
+  test("guardrail files are denied to every file-editing tool", () => {
+    for (const tool of ["Edit", "Write", "MultiEdit"]) {
+      for (const p of ["./.claude/settings.json", "./.claude/settings.local.json", "./.claude/hooks/**"]) {
+        assert.ok(settings.permissions.deny.includes(`${tool}(${p})`), `${tool}(${p})`);
+      }
+    }
+  });
+  test("matchers: file guards cover MultiEdit, bash-guard sees Bash", () => {
+    for (const h of ["scope-guard.js", "style-guard.js", "version-snapshot.js"]) {
+      for (const t of ["Edit", "Write", "MultiEdit", "NotebookEdit"]) assert.ok(matcherFor(h).includes(t), `${h}: ${t}`);
+    }
+    assert.deepEqual(matcherFor("bash-guard.js"), ["Bash"]);
+  });
   const EVENTS = new Set(["PreToolUse", "PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"]);
 
   test("every registered command points at an existing hook via $CLAUDE_PROJECT_DIR", () => {
@@ -481,7 +683,7 @@ describe(".claude/settings.json", () => {
   });
   test("has a $schema and a permissions block with allow and deny rules", () => {
     assert.equal(settings.$schema, "https://json.schemastore.org/claude-code-settings.json");
-    const rule = /^(Bash|Read|Edit|Write|WebFetch|Glob|Grep)(\(.+\))?$/;
+    const rule = /^(Bash|Read|Edit|Write|MultiEdit|WebFetch|Glob|Grep)(\(.+\))?$/;
     for (const key of ["allow", "deny"]) {
       assert.ok(Array.isArray(settings.permissions[key]) && settings.permissions[key].length > 0, key);
       for (const r of settings.permissions[key]) assert.match(r, rule);
@@ -497,5 +699,44 @@ describe("agents", () => {
       .match(/^tools:\s*(.*)$/m)[1].split(",").map((t) => t.trim());
   test("procedure-tuner has no write tools (it proposes diffs, a person approves)", () => {
     for (const t of ["Edit", "Write", "NotebookEdit", "Bash"]) assert.ok(!tools("procedure-tuner.md").includes(t), t);
+  });
+  test("brand-voice-reviewer's Bash is enforced by bash-guard, under the name the hook checks", () => {
+    const md = fs.readFileSync(path.join(REPO, ".claude", "agents", "brand-voice-reviewer.md"), "utf8");
+    assert.match(md, /^name: brand-voice-reviewer$/m);
+    assert.match(md, /bash-guard\.js/);
+    assert.match(fs.readFileSync(path.join(REPO, ".claude", "hooks", "bash-guard.js"), "utf8"), /"brand-voice-reviewer"/);
+  });
+  test("every frontmatter field is a documented subagent field", () => {
+    const FIELDS = new Set(["name", "description", "tools", "disallowedTools", "model", "permissionMode", "maxTurns", "skills",
+      "mcpServers", "hooks", "memory", "background", "omitClaudeMd", "effort", "isolation", "color", "initialPrompt"]);
+    for (const f of fs.readdirSync(path.join(REPO, ".claude", "agents"))) {
+      const front = fs.readFileSync(path.join(REPO, ".claude", "agents", f), "utf8").split("---")[1];
+      for (const m of front.matchAll(/^(\w+):/gm)) assert.ok(FIELDS.has(m[1]), `${f}: ${m[1]}`);
+    }
+  });
+});
+
+describe("README claims are backed by a file in the repo", () => {
+  const readme = fs.readFileSync(path.join(REPO, "README.md"), "utf8");
+  test("every Claude Code version named appears in the saved session transcript", () => {
+    const transcript = fs.readFileSync(path.join(REPO, "examples", "transcripts", "2026-10-13-hooks-session.jsonl"), "utf8");
+    const versions = [...readme.matchAll(/Claude Code (\d+\.\d+\.\d+)/g)].map((m) => m[1]);
+    assert.ok(versions.length > 0);
+    for (const v of versions) assert.ok(transcript.includes(`"claude_code_version":"${v}"`), v);
+  });
+  test("no unshown size claims about the private workspace", () => {
+    assert.doesNotMatch(readme, /about \d+ skills/);
+  });
+});
+
+describe("CI workflow", () => {
+  const ci = fs.readFileSync(path.join(REPO, ".github", "workflows", "ci.yml"), "utf8");
+  test("full Node range on Ubuntu, Node 22 only on macOS and Windows, plus a fast lane", () => {
+    assert.match(ci, /os: \[ubuntu-latest\]/);
+    assert.match(ci, /node: \[18, 20, 22\]/);
+    assert.match(ci, /- os: macos-latest\s+node: 22/);
+    assert.match(ci, /- os: windows-latest\s+node: 22/);
+    assert.match(ci, /^  fast:/m);
+    assert.doesNotMatch(ci, /retry|continue-on-error/i);
   });
 });

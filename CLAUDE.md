@@ -20,6 +20,9 @@
 - Reads and writes stay inside this workspace folder, except Claude Code's
   own working files - enforced by `.claude/hooks/scope-guard.js`. Network
   and destructive shell commands are denied in `.claude/settings.json`.
+- `.claude/settings.json` and `.claude/hooks/` are changed by the owner
+  by hand, never by Claude: `scope-guard.js` and the settings deny rules
+  both block those writes.
 - Before any edit to `CLAUDE.md`, `Feedback/`, an agent or a skill, the
   current content is copied to `.versions/` by
   `.claude/hooks/version-snapshot.js`; restore by copying a version back.
