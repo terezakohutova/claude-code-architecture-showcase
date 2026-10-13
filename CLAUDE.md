@@ -1,7 +1,7 @@
 # CLAUDE.md - Marlowe and Finch workspace index
 
 > Example workspace for a solo vintage-reselling business (fictional). This
-> file is an index only - see [ORGANIZACE.md](ORGANIZACE.md) for the
+> file is an index only - see [METHODOLOGY.md](METHODOLOGY.md) for the
 > methodology it follows.
 
 ## How this workspace is organized

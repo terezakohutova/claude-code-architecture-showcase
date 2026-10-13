@@ -51,8 +51,8 @@ trust with someone whose stock the business depends on.
 
 ## Proof it runs, not just a description
 
-Per this repo's own rule about publishing sample output (see
-`Feedback/`), the run below was not hand-written to look plausible. A
+Same standard as every other example here: the run below was not
+hand-written to look plausible. A
 fresh agent was given only `.claude/skills/commitment-tracker/SKILL.md`,
 `TODO.md`, and `examples/sample-call-notes.md`, told today's date was
 2026-01-21, and asked to follow the skill exactly. No expected output was

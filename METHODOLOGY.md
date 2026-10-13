@@ -29,7 +29,7 @@ flat pile of notes. Typical layout:
 CLAUDE.md                 index + rules + a pointer to the current log
 Feedback/                 rules about HOW Claude should work (see section 3)
   INDEX.md
-  <category>/<rule>.md
+  <category>/<rule>.md    (flat <rule>.md until there are enough to group)
 Log/                      chronological diary, one file per month (section 5)
   2026-01.md
 <Topic-A>/

@@ -22,7 +22,7 @@ happen.
 **How to apply:** The moment you notice a skill or agent's own text (not the
 task, not the outside world) caused a wrong tool call, a broken reference,
 or a misfire, add a line to `.claude/TUNING-LEDGER.md`
-(`- [ ] YYYY-MM-DD path - what happened`) before moving on. `procedure-tuner`
+(`- [ ] YYYY-MM-DD: path - what happened`) before moving on. `procedure-tuner`
 (see `.claude/agents/procedure-tuner.md`) is the one that reads and closes
 these out, either automatically (a `SessionStart` hook flags unresolved
 lines) or on direct request. Do not log ordinary task failures caused by the

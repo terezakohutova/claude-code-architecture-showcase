@@ -3,7 +3,7 @@
 Friction observed during a real run of a skill or agent, logged here
 instead of only patched around in the moment - see
 [Feedback/procedure-drift-logging.md](../Feedback/procedure-drift-logging.md).
-Format: `- [ ] YYYY-MM-DD path - what happened`. `procedure-tuner` (see
+Format: `- [ ] YYYY-MM-DD: path - what happened`. `procedure-tuner` (see
 `.claude/agents/procedure-tuner.md`) reviews unresolved lines - a
 `SessionStart` hook flags this automatically whenever one exists - and
 marks each `- [x]` once handled. Resolved lines stay in the file as

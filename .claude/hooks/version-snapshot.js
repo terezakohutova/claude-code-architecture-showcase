@@ -48,7 +48,11 @@ function snapshot(file) {
 
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
-  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  // Fixed-width local timestamp down to milliseconds, so names sort in time
+  // order and two quick edits in the same second don't overwrite each other.
+  const stamp =
+    `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-` +
+    `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${String(d.getMilliseconds()).padStart(3, "0")}`;
   fs.copyFileSync(file, path.join(dir, stamp + path.extname(file)));
   fs.appendFileSync(path.join(dir, "index.jsonl"), JSON.stringify({ version: stamp }) + "\n");
 }

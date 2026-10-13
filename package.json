@@ -1,0 +1,15 @@
+{
+  "name": "claude-code-architecture-showcase",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Claude Code workspace architecture: CLAUDE.md index, feedback rules, hooks, skills and scoped agents, with tested hooks.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "test": "node --test tests/hooks.test.js && node scripts/check-docs.js",
+    "test:hooks": "node --test tests/hooks.test.js",
+    "check:docs": "node scripts/check-docs.js"
+  }
+}

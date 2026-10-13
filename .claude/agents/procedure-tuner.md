@@ -14,7 +14,7 @@ yourself.
 ## Where the work comes from
 
 Most of the time you're triggered because `.claude/TUNING-LEDGER.md` has an
-unresolved line (format: `- [ ] YYYY-MM-DD path - what happened`). Read the
+unresolved line (format: `- [ ] YYYY-MM-DD: path - what happened`). Read the
 ledger first. Each unresolved line names a file and a concrete problem
 observed during a real run, not a hypothetical - that's your starting
 point. When you're done with a line, mark it `- [x]` in the ledger; never

@@ -28,8 +28,8 @@ another agent's frontmatter and never trimmed. A matching line was added to
 
 ## Proof it runs, not just a description
 
-Per this repo's own rule about publishing sample output (see `Feedback/`),
-a fresh agent was given only `.claude/agents/procedure-tuner.md` as its
+Same standard as every other example here (no expected output written
+first, the result shown unedited): a fresh agent was given only `.claude/agents/procedure-tuner.md` as its
 operating instructions - no other context about why the task existed - and
 told to follow it exactly against the seeded ledger entry. The report below
 is unedited.

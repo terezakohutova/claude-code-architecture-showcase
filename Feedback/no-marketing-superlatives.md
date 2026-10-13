@@ -31,8 +31,9 @@ violations kept recurring across sessions even after being corrected
 repeatedly (the classic failure mode: a rule gets re-read, acknowledged,
 and then quietly drifts a few tasks later once attention is on something
 else). `.claude/hooks/style-guard.js` now hard-blocks any `Write`/`Edit`
-call whose content matches the banned phrase list or contains an em/en
-dash character, before the write happens - not a reminder, a rejection.
+call that would put a banned phrase or an em/en dash into a prose file
+(`.md`, `.txt`), before the write happens - not a reminder, a rejection.
+This file is the one exemption, since it has to quote the list.
 This is the pattern worth copying: a rule that keeps failing as a soft
 instruction is a signal to build a technical gate, not to keep repeating
 the instruction more emphatically.
