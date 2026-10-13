@@ -22,6 +22,17 @@
             "statusMessage": "Checking style guard..."
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/version-snapshot.js",
+            "timeout": 10,
+            "statusMessage": "Saving a version of the file..."
+          }
+        ]
       }
     ],
     "SessionStart": [

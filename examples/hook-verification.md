@@ -69,3 +69,19 @@ Actual output:
 The workspace root path in that message is resolved from `__dirname` at
 run time, so it will show your own local path if you reproduce this
 rather than the one above.
+
+## version-snapshot.js
+
+**Protected file, edited twice without a change in between, should keep one version**
+
+Input path: `Feedback/INDEX.md`, sent twice
+
+Actual result: one file, `.versions/Feedback/INDEX.md/20261013-133612.md`,
+plus its `index.jsonl`. The second call found identical content and wrote
+nothing. Nothing on stdout either time, so the edit is never blocked.
+
+**File outside the protected list, should keep nothing**
+
+Input path: `Inventory/inventory-status.md`
+
+Actual result: no `.versions/Inventory/` folder.

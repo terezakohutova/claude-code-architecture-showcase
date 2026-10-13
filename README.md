@@ -72,6 +72,19 @@ seeded for the demo (a dead `Edit` grant on `inventory-researcher`) and a
 fresh agent, given only `procedure-tuner.md` as instructions, found it,
 fixed it, and closed out the ledger line - unedited report in that file.
 
+## A safety net for the rules themselves: automatic versions
+
+Feedback rules, agent prompts and skills get edited all the time, by the
+owner and by Claude itself, and an "improvement" can quietly make one worse.
+`.claude/hooks/version-snapshot.js` runs before every Edit/Write and copies
+the current content of a protected file (`CLAUDE.md`, `Feedback/`, agents,
+skills, the tuning ledger) to `.versions/<path>/<timestamp>`, only when it
+changed since the last copy. Going back is a file copy, not an attempt to
+remember what the rule used to say. It never blocks an edit. In the real
+workspace the same pattern also protects the files a set of ads agents
+depends on (goals, playbooks, status files), next to a change ledger for the
+live ad accounts, where an undo button doesn't exist.
+
 ## What's in this repo
 
 - `CLAUDE.md`, `ORGANIZACE.md` - the index file and the methodology doc that explains how to build this structure on a new project (deliberately written to be copy-pasted elsewhere, it doesn't reference this specific example).
@@ -80,6 +93,7 @@ fixed it, and closed out the ledger line - unedited report in that file.
 - `.claude/skills/product-listing/` - one example of a recurring procedure written as a checklist skill, with a reference/status split for the data it depends on (`Inventory/`).
 - `.claude/skills/commitment-tracker/` - a second skill, this one produced by the self-extension session described above rather than written from a spec, plus `TODO.md` as the plain file it writes to.
 - `.claude/agents/` - three of the four custom agent archetypes that came out of the real workspace: a research agent (`inventory-researcher`, fans out web/data lookups with strict sourcing discipline and returns a clean writeup instead of dozens of search calls), a review agent (`brand-voice-reviewer`, checks a draft against what's actually published, not the aspirational brand doc), and a self-tuning agent (`procedure-tuner`, reviews the other skills/agents in this repo against what they actually declare vs. use).
+- `.claude/hooks/version-snapshot.js` - the automatic versions described above (`.versions/` is git-ignored).
 - `.claude/TUNING-LEDGER.md` plus `.claude/hooks/tuning-ledger-check.js` - the second escalation path described above.
 - `Log/` - one example entry showing the format (dated, newest on top, `CLOSED_` prefix only when nothing is left open).
 

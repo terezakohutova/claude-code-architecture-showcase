@@ -22,6 +22,9 @@
   (the hook covers a second banned pattern too - see that file).
 - Reads and writes stay inside this workspace folder - enforced by
   `.claude/hooks/scope-guard.js`.
+- Before any edit to `CLAUDE.md`, `Feedback/`, an agent or a skill, the
+  current content is copied to `.versions/` by
+  `.claude/hooks/version-snapshot.js`; restore by copying a version back.
 - A skill or agent's own definition causing a real problem mid-run gets
   logged to [.claude/TUNING-LEDGER.md](.claude/TUNING-LEDGER.md), not just
   worked around - see [Feedback/procedure-drift-logging.md](Feedback/procedure-drift-logging.md).
