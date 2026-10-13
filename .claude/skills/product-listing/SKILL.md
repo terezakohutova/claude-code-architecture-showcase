@@ -21,6 +21,10 @@ description, price with a one-line rationale).
 
 ## Writing the listing
 
+Save the draft as `Inventory/listings/<item id>.md` (MF-0041 goes to
+MF-0041.md in that folder). That folder is customer-facing copy, so
+the style-guard hook checks every write to it.
+
 - Title: item, maker/mark if known, material, era if known. No
   superlatives (see `Feedback/no-marketing-superlatives.md`).
 - Description: lead with the concrete facts (maker, material, dimensions,
@@ -36,10 +40,16 @@ description, price with a one-line rationale).
 
 Run the draft past `brand-voice-reviewer` (see
 `.claude/agents/brand-voice-reviewer.md`) if there's any doubt about
-tone - it checks against what's actually been published, not just this
-file's rules.
+tone. It runs the same style check as the hook and compares the draft
+with published copy in `Brand/voice-examples.md`.
 
 ## After writing
 
-Update `Inventory/inventory-status.md`: move the item from Draft to Live
-with today's date.
+Update `Inventory/inventory-status.md`: move the item from Draft to
+**Ready for review** with today's date and the draft's path. Do not mark
+it Live. This skill only drafts; posting happens outside this workspace,
+by a person. The item moves to Live when the owner says it has been
+posted, with the date it went up.
+
+If the item is still missing something it needs before it can be posted
+(photos, dimensions), leave it in Draft and say what is missing.

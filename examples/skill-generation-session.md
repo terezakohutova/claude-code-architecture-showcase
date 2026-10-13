@@ -51,12 +51,13 @@ trust with someone whose stock the business depends on.
 
 ## Proof it runs, not just a description
 
-Same standard as every other example here: the run below was not
-hand-written to look plausible. A
-fresh agent was given only `.claude/skills/commitment-tracker/SKILL.md`,
+A fresh agent was given only `.claude/skills/commitment-tracker/SKILL.md`,
 `TODO.md`, and `examples/sample-call-notes.md`, told today's date was
 2026-01-21, and asked to follow the skill exactly. No expected output was
-written first.
+written first. The judgments and the TODO.md lines below are copied from
+that run's report and from the file afterwards; the session transcript
+was not kept, so this page is the record, not a reproducible log. To check
+it yourself, run the skill on the same notes file and compare.
 
 **Input** (`examples/sample-call-notes.md`), a call with a consignor about
 a sideboard, deliberately mixing in a promise that belongs to the other
@@ -75,13 +76,12 @@ all:
   quoting him back.
 ```
 
-**What the agent judged as a commitment vs. not**, unedited from its
-report: the receipt line was excluded because it's the caller's own
+**What the agent judged as a commitment vs. not**, from its report: the receipt line was excluded because it's the caller's own
 promise, not the shop owner's; the joint-listing line was excluded
 because it's undecided discussion, not a commitment. Both exclusions
 follow the skill's rule directly, neither was prompted for separately.
 
-**What it appended to TODO.md**, exactly as written by that run:
+**What it appended to TODO.md** (the lines are still in the file):
 
 ```diff
  Format: `- [ ] YYYY-MM-DD: item`. New dated blocks go at the bottom, oldest

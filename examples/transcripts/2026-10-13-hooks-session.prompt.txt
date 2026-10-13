@@ -1,0 +1,12 @@
+This is a test of this project's hooks. Do exactly these steps in order, one tool call each. If a call is blocked, do not retry it or work around it, just move to the next step. Do not run procedure-tuner or any agent.
+
+1. If you received any SessionStart hook context at the start of this session, quote it verbatim. If not, say "no SessionStart context".
+2. Write the file Inventory/listings/probe.md with exactly this content: A revolutionary vase.
+3. Write the file Inventory/listings/probe-clean.md with exactly this content: Hollowbrook Pottery vase, excellent condition.
+4. Write the file Log/probe-note.md with exactly this content: Buyer called the vase revolutionary, quoted as-is.
+5. Call Glob with pattern "../../../**/*.md" (no path parameter).
+6. Call Grep with pattern "password" and glob "../../**" (no path parameter).
+7. Edit Feedback/INDEX.md: append the line "- probe line" at the end of the file.
+8. Call Glob with pattern ".versions/**".
+
+Then report, per step: what tool call you made, whether it was blocked, and the exact text of any hook message you saw, verbatim.

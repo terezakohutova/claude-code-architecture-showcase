@@ -5,9 +5,35 @@ a personal or small-business project - not tied to any specific domain.
 Copy this file into the root of a new project and let the structure grow
 organically as real work happens, rather than building it all up front.
 
+## 0. What Claude Code actually loads, and when
+
+The structure below is built around this, so it is worth being exact:
+
+- **`CLAUDE.md` loads in full at the start of every session**: the one in
+  the project root (and in parent folders above it), plus the user-level
+  `~/.claude/CLAUDE.md`. A `CLAUDE.md` in a subfolder loads only when
+  Claude reads files in that subfolder. An `@path/to/file` import inside
+  `CLAUDE.md` pulls that file in at startup too.
+- **A plain Markdown link does not load anything.** `Feedback/INDEX.md`,
+  topic files and the log are read only when a session follows a link to
+  them (because a trigger in `CLAUDE.md` told it to) or someone asks.
+  They cost nothing until then, and they are also not guaranteed to be
+  seen. That is the trade-off this whole method manages.
+- **Skills: the name and `description` from each `SKILL.md` frontmatter
+  load every session; the body loads only when the skill is used.** A
+  skill is cheap to have around, and its description is what decides
+  whether it gets used, so it needs to say when.
+- **Agents: the name and `description` are visible to the main session;
+  the body is the agent's own system prompt** and only runs inside that
+  agent, with the tools its `tools:` line grants.
+- **Hooks and permissions are not context at all.** They are enforced by
+  Claude Code whether or not anything was read, which is why a rule that
+  keeps being ignored moves from text into a hook (section 6).
+
 ## 1. CLAUDE.md is an index, not a warehouse
 
-`CLAUDE.md` loads into every session automatically. Because of that:
+`CLAUDE.md` loads into every session automatically (section 0). Because of
+that:
 
 - Keep it short - roughly under 200 lines / 20 KB.
 - Don't write long raw content into it (history, fact lists, detailed
@@ -67,9 +93,15 @@ metadata:
 **How to apply:** <when/where the rule kicks in, so edge cases can be judged>
 ```
 
-Cross-link related rules with `[[other-file-name]]` - even a link to a file
-that doesn't exist yet is fine, it just marks something worth writing
-later.
+The frontmatter here is a convention for people and for search (`grep
+"type: feedback"`), not something Claude Code reads: it parses frontmatter
+only in `SKILL.md` files and agent files. A Feedback file is plain text
+that is read when a trigger sends a session to it, so the rule and its
+"How to apply" have to make sense on their own.
+
+Cross-link related rules with a normal relative Markdown link. A link to a
+file that doesn't exist yet is fine as a note to self (it marks something
+worth writing later), but it resolves to nothing, so don't rely on it.
 
 ## 4. An index needs a TRIGGER, not just a description
 
@@ -104,9 +136,17 @@ never "file B describes A".
 
 If there are 3+ rules that always apply together for the same recurring
 task (e.g. "how to write a new listing"), combine them into
-`.claude/skills/<name>/SKILL.md` as a checklist and **remove them from the
-always-scanned index** (`Feedback/INDEX.md`) - the detail stays in its own
-file for reference, but doesn't load into every session unnecessarily.
+`.claude/skills/<name>/SKILL.md` as a checklist and **remove their lines
+from `Feedback/INDEX.md`**. `INDEX.md` is not auto-loaded (section 0), but
+it is the file every session is pointed at for gray areas, so each line in
+it is something a session has to scan and judge. As a skill, the procedure
+costs one description line per session and its body loads only when the
+task comes up.
+
+If a rule still gets broken after it is written down, re-read and
+acknowledged, more emphasis does not help. Move it into a hook (a
+`PreToolUse` check that denies the tool call) and test the hook inside a
+real Claude Code session, not only from a terminal.
 
 ## 7. Sensitive material gets its own, prominent file
 
@@ -140,16 +180,26 @@ in `CLAUDE.md` - move it once `Log/` exists.
 ## 10. What does NOT belong in a written record (Feedback or otherwise)
 
 - Anything derivable from the current code/file state (re-read it instead).
-- Change history that version control already has.
+- Change history that version control already has: what was committed,
+  when, by whom. Don't copy it into a Log entry or a rule.
 - Ephemeral detail about work in progress (that's what in-session task
   tracking is for).
+
+This does not rule out automatic snapshots of rule, agent and skill files
+(a `PreToolUse` hook copying the old content before an edit). Version
+control only has what was committed; in a working session most edits to
+these files happen between commits, and a snapshot is the only copy of
+the previous wording. Keep snapshots git-ignored and pruned to the last
+few per file: they are a short-term undo, not a second history.
 
 ---
 
 ### Quick start for a new instance
 
-1. Create an empty `CLAUDE.md` with a short "How to log" + "Rules" section
-   (empty, fills in over time) + "Context" as a table of contents.
+1. Create `CLAUDE.md` with three sections: "How to log" (where the log
+   lives, newest on top), "Rules" (empty, fills in over time) and
+   "Context" (a table of contents: one line per topic file, skill and
+   agent, each saying when to open it).
 2. Don't rush to build out `Feedback/` in advance - create the first file
    once the first concrete rule actually shows up (a correction or
    confirmation happens).

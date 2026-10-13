@@ -16,17 +16,17 @@ exactly as Claude Code sends it. The payloads used here are in
 node .claude/hooks/style-guard.js < examples/payloads/write-superlative.json
 ```
 
-Every output below is copied from a real run. A deny is a JSON decision on
-stdout, exit code 0. An allow is no output at all, exit code 0, which leaves
-Claude Code's normal permission prompt in place.
+Every output below is copied from a run on 2026-10-13. A deny is a JSON
+decision on stdout, exit code 0. An allow is no output at all, exit code 0,
+which leaves Claude Code's normal permission prompt in place.
 
 ### style-guard.js
 
-`write-superlative.json` (Write to Inventory/draft-listing.md, content
+`write-superlative.json` (Write to Inventory/listings/draft.md, content
 "This is a truly best-in-class vase, a real must-have for any collector."):
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Style guard: banned superlative \"best-in-class\" found near: \"This is a truly best-in-class vase, a real must-have for an\". See Feedback/no-marketing-superlatives.md, rewrite before saving."}}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Style guard: banned superlative \"best-in-class\" found near: \"This is a truly best-in-class vase, a real must-have for an\" (and 1 more). See Feedback/no-marketing-superlatives.md, rewrite before saving."}}
 ```
 
 `write-em-dash.json` (the payload carries the em dash as the JSON escape
@@ -38,6 +38,10 @@ quotes the literal character back, shown here as `[U+2014]`):
 ```
 
 `write-clean.json`: no output, exit 0.
+
+`write-log-out-of-scope.json` (Write to `Log/2026-01.md` quoting a buyer
+who said "revolutionary"): no output, exit 0. `Log/` is internal, not
+customer-facing copy.
 
 ### scope-guard.js
 
@@ -55,41 +59,82 @@ quotes the literal character back, shown here as `[U+2014]`):
 {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"/etc/**/*.conf\" resolves outside this project's folder. Reads and writes must stay inside the workspace root."}}
 ```
 
+`glob-relative-outside.json` (Glob with the relative pattern
+`../../../**/*.md`, which the first version of this hook let through):
+
+```json
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../../../**/*.md\" resolves outside this project's folder. Reads and writes must stay inside the workspace root."}}
+```
+
+`grep-glob-outside.json` (Grep with the file filter `glob: "../../**"`,
+also let through by the first version):
+
+```json
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../../**\" resolves outside this project's folder. Reads and writes must stay inside the workspace root."}}
+```
+
 ## 2. Inside a real Claude Code session
 
 Run on 2026-10-13 with Claude Code 2.1.296 on Windows 11, in a fresh copy of
-this repo, headless (`claude -p ... --permission-mode acceptEdits`). One
-open line was added to `.claude/TUNING-LEDGER.md` first so the SessionStart
-hook had something to report. The session was told to do five steps, quote
-every hook message verbatim and never retry a blocked call. The quotes
-below are from its report; the only edit is the absolute temp path in step
-4, shortened to `<temp>`.
+this repo in the OS temp folder (no `.git`), with the hooks exactly as they
+are in this repo. One open line was added to `.claude/TUNING-LEDGER.md` first so
+the SessionStart hook had something to report. The exact command, run from
+the copy's root:
 
-1. **SessionStart** context received:
-   > TUNING-LEDGER.md has unresolved entries ('- [ ]'). Before anything
-   > else this session, run procedure-tuner (.claude/agents/procedure-tuner.md)
-   > against each one, apply or report fixes per its own checklist, and
-   > mark handled lines '- [x]' in the ledger.
-2. **Write** Inventory/probe-listing.md with "A revolutionary vase.":
-   blocked, file not created.
-   > PreToolUse:Write hook error: Style guard: banned superlative
-   > "revolutionary" found near: "A revolutionary vase.". See
-   > Feedback/no-marketing-superlatives.md, rewrite before saving.
-3. **Write** Inventory/probe-clean.md with clean copy: created, no hook
-   message.
-4. **Read** a file in a sibling folder outside the project: blocked.
-   > PreToolUse:Read hook error: Scope guard: "<temp>\outside\notes.md"
-   > resolves outside this project's folder. Reads and writes must stay
-   > inside the workspace root.
-5. **Edit** `Feedback/INDEX.md`: applied, and `version-snapshot.js` kept
-   the content from before the edit:
-   ```
-   .versions/Feedback/INDEX.md/20261013-202019-331.md
-   .versions/Feedback/INDEX.md/index.jsonl
-   ```
+```
+claude -p "$(cat ../prompt.txt)" --permission-mode acceptEdits \
+  --output-format stream-json --verbose --max-turns 25 > ../stream.jsonl
+```
 
-The same session on the version of these hooks before the 2026-10-13 fix,
-which printed `{"permissionDecision":"deny"}` at the top level instead of
-inside `hookSpecificOutput`, wrote "A revolutionary vase." without any
-block. That is why level 2 exists: level 1 alone passed for that version
-too.
+- The prompt, verbatim:
+  [`transcripts/2026-10-13-hooks-session.prompt.txt`](transcripts/2026-10-13-hooks-session.prompt.txt).
+- The session's events:
+  [`transcripts/2026-10-13-hooks-session.jsonl`](transcripts/2026-10-13-hooks-session.jsonl).
+  This is a filtered copy of `stream.jsonl`: it keeps the hook events, the
+  init line (version, model, permission mode, cwd), every tool call with
+  its input, every tool result and the final report, and drops streaming,
+  thinking-token and rate-limit events and the init line's tool list.
+  Two substitutions, nothing else: the temp folder's absolute path is
+  replaced with `<temp>`, and the em dash in Claude Code's own "file state
+  is current" message is written as the JSON escape `\u2014`.
+
+What the events show, step by step:
+
+| Step | Tool call | Result in the transcript |
+|---|---|---|
+| Session start | SessionStart hook (`startup`) | exit 0, context added: "TUNING-LEDGER.md has unresolved entries..." |
+| 2 | Write Inventory/listings/probe.md, "A revolutionary vase." | error: `PreToolUse:Write hook error: Style guard: banned superlative "revolutionary" found near: "A revolutionary vase."...`; file not created |
+| 3 | Write Inventory/listings/probe-clean.md, clean copy | created |
+| 4 | Write Log/probe-note.md, quotes "revolutionary" | created (Log/ is out of the style guard's scope, as intended) |
+| 5 | Glob `../../../**/*.md` | error: `PreToolUse:Glob hook error: Scope guard: "../../../**/*.md" resolves outside this project's folder...` |
+| 6 | Grep `password`, glob `../../**` | error: `PreToolUse:Grep hook error: Scope guard: "../../**" resolves outside this project's folder...` |
+| 7 | Read, then Edit `Feedback/INDEX.md` | applied |
+| 8 | Glob `.versions/**` | `.versions\Feedback\INDEX.md\2026-10-13T18-55-03.003Z.md` and `index.jsonl` |
+
+Checked by hand after the run, in the temp copy: `Inventory/listings/`
+held no `probe.md` (only `probe-clean.md` and `.gitkeep`), and the snapshot file held the pre-edit
+content of `Feedback/INDEX.md` (without "- probe line"). Its index line:
+
+```
+{"event":"snapshot","version":"2026-10-13T18-55-03.003Z.md","at":"2026-10-13T18:55:03.003Z","tool":"Edit","file":"Feedback/INDEX.md","reason":"content before Edit","sha256":"4d6f94acabbc854dbdb89b86aee1aa36f2d8b50aae23b928e4e6bca31c43549a","bytes":469,"session":"51c2e7be-5890-47ce-bbea-71a861853a72"}
+```
+
+Claude Code also printed this on stderr, because the temp copy had never
+been opened interactively:
+
+```
+Ignoring 7 permissions.allow entries from .claude/settings.json: this workspace has not been trusted. [...]
+```
+
+So `permissions.allow` from a project's settings only applies once the
+folder is trusted; the hooks ran regardless.
+
+### The earlier failure this level exists for
+
+An earlier version of these hooks printed `{"permissionDecision":"deny"}`
+at the top level instead of inside `hookSpecificOutput`. Run from a
+terminal (level 1) it looked like a working deny. In a headless session
+like the one above it did not block: "A revolutionary vase." was written.
+That run was before transcripts were kept, so only this description of it
+exists. The fix and the regression test are described in
+[`Feedback/no-marketing-superlatives.md`](../Feedback/no-marketing-superlatives.md).

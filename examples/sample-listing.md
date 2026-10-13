@@ -3,8 +3,11 @@
 A fresh agent was given only `.claude/skills/product-listing/SKILL.md`,
 `Inventory/inventory-reference.md`, and `Inventory/inventory-status.md`,
 and asked to write the listing for MF-0041 (Hollowbrook Pottery vase,
-logged as Draft, waiting on photos). No expected output was written first,
-this is the actual, unedited result of that run.
+logged as Draft, waiting on photos). No expected output was written
+first. What follows is the listing that run returned, copied from its
+report; the session transcript was not kept, so this page is the record,
+not a reproducible log. A transcript-backed run of the hooks is in
+[`hook-verification.md`](hook-verification.md).
 
 ## What governed the listing
 
@@ -40,11 +43,13 @@ it's held short of the top of the band since Hollowbrook carries
 mid-range, not high, collector demand per the reference file, upper-
 middle of band.
 
-## What the run got right without being told to
+## What the run exposed in the skill
 
-The skill's own "After writing" step says to move the item from Draft to
-Live in `inventory-status.md`. The agent did not do that here, and said
-why unprompted: the item is waiting on photos, so it isn't actually ready
-to post, and moving its status would have been wrong regardless of what
-the checklist step says by default. That's the kind of judgment call this
-architecture is meant to produce, not a rule followed blindly.
+At the time, the skill's "After writing" step said to move the item from
+Draft to Live in `inventory-status.md`. The agent did not do that, and
+said why: the item is waiting on photos, so it isn't ready to post. The
+agent was right and the skill was wrong: a drafted listing is not live
+until a person has posted it. The skill now moves a finished draft to
+**Ready for review** and leaves Live to the owner, and leaves an item that
+is still missing something (like these photos) in Draft. Good judgment in
+one run is not a substitute for a correct checklist.

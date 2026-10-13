@@ -10,6 +10,7 @@
   "scripts": {
     "test": "node --test tests/hooks.test.js && node scripts/check-docs.js",
     "test:hooks": "node --test tests/hooks.test.js",
-    "check:docs": "node scripts/check-docs.js"
+    "check:docs": "node scripts/check-docs.js",
+    "check:style": "node scripts/style-check.js Brand/voice-examples.md"
   }
 }

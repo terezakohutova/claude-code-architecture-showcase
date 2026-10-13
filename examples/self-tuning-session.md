@@ -13,8 +13,8 @@ worked around, and sits there for the next run to trip over again.
 path, for that kind of drift specifically: log the friction the moment it's
 noticed (`Feedback/procedure-drift-logging.md`), and a `SessionStart` hook
 (`.claude/hooks/tuning-ledger-check.js`) flags any unresolved line so the
-next session runs `procedure-tuner` against it without anyone having to
-remember to ask.
+next session raises it and offers `procedure-tuner` without anyone having
+to remember to ask.
 
 ## The seeded case
 
@@ -28,11 +28,19 @@ another agent's frontmatter and never trimmed. A matching line was added to
 
 ## Proof it runs, not just a description
 
-Same standard as every other example here (no expected output written
-first, the result shown unedited): a fresh agent was given only `.claude/agents/procedure-tuner.md` as its
+A fresh agent was given only `.claude/agents/procedure-tuner.md` as its
 operating instructions - no other context about why the task existed - and
-told to follow it exactly against the seeded ledger entry. The report below
-is unedited.
+told to follow it exactly against the seeded ledger entry. No expected
+output was written first. The quotes and diffs below are copied from that
+run's report and from the files afterwards; the session transcript was not
+kept, so this page is the record, not a reproducible log.
+
+That run used the earlier version of `procedure-tuner`, which had `Edit`
+and applied mechanical fixes itself. Since 2026-10-13 it has no write
+tools and returns proposed diffs that the owner approves one by one (see
+"The guard" in the agent file). The same seeded case today would end with
+the diff below being proposed, then applied by the main session after a
+yes.
 
 **What it found:**
 
@@ -45,7 +53,7 @@ is unedited.
 > "What you return" performs a write; the only file interaction described
 > is reading `Inventory/inventory-reference.md`.
 
-**What it changed**, exactly as applied:
+**What it changed** (the file before and after):
 
 ```diff
 -tools: Read, Grep, Glob, WebFetch, WebSearch, Edit
@@ -53,12 +61,12 @@ is unedited.
 ```
 
 **Why it fixed rather than flagged:** "a mechanical, reversible, single-file
-tool-grant fix," per `procedure-tuner.md`'s own fix-vs-report rule - it also
+tool-grant fix," per the fix-vs-report rule `procedure-tuner.md` had then - it also
 reported explicitly finding nothing that warranted flagging instead
 ("No structural issue - merge, rename, scope shift - turned up in this
 file").
 
-**Ledger closed out**, exactly as written back to the file:
+**Ledger closed out** (the ledger line before and after):
 
 ```diff
 -- [ ] 2026-01-22: .claude/agents/inventory-researcher.md - noticed while reviewing this agent that it's granted `Edit`, but its own text says "You do not write the listing yourself" and nothing in its steps ever touches a file. Looks like a copy-paste leftover from an earlier draft that also wrote the listing.
@@ -71,6 +79,7 @@ An unused tool grant on one agent is not, by itself, an interesting finding.
 What's worth reusing is the mechanism around it: a place to put "the
 definition itself caused this, not the task" the moment it's noticed, a
 hook that turns an unresolved line into something the next session actually
-acts on instead of a note nobody reopens, and a reviewer narrow enough to
-tell a mechanical one-line fix from a structural decision it shouldn't make
-on its own.
+raises instead of a note nobody reopens, and a reviewer narrow enough to
+tell a one-line fix from a structural decision. An agent that rewrites the
+instructions other agents follow is also the riskiest thing in the
+workspace, which is why it now proposes and a person approves.

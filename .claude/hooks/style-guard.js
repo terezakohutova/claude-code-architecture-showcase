@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // PreToolUse hook: denies any Write/Edit/NotebookEdit call that would put a
-// banned marketing superlative or an em/en dash into a prose file. See
-// Feedback/no-marketing-superlatives.md for why this exists as a hard gate
-// rather than a documented-only rule: the documented rule alone kept getting
-// violated across sessions.
+// banned marketing superlative or an em/en dash into customer-facing copy.
+// See Feedback/no-marketing-superlatives.md for why this exists as a hard
+// gate rather than a documented-only rule.
 //
 // Registered in .claude/settings.json on the "Write|Edit|NotebookEdit"
 // matcher. Reads the hook payload as JSON on stdin. To deny, it prints a
@@ -11,33 +10,27 @@
 // "deny"); otherwise it prints nothing and exits 0, leaving the normal
 // permission flow alone.
 //
-// Only prose files are checked (PROSE_EXTENSIONS). Code is out of scope: this
-// file has to contain the banned words to ban them. The rule file itself is
-// exempt for the same reason, it has to quote the list it documents.
+// What counts as copy, and what is banned, lives in lib/style-rules.js,
+// shared with scripts/style-check.js so the on-demand check and this gate
+// can't disagree. In short: only files under Inventory/listings/ and Copy/
+// with a text extension are checked; Log/, Feedback/, TODO.md and other
+// internal notes are not. Text in code spans, fenced blocks and blockquotes
+// counts as quoted, not as the shop speaking.
+//
+// What it cannot see: anything that does not go through the file tools.
+// A Bash `echo ... > file`, a browser automation typing into a marketplace
+// form, or an MCP tool posting directly are all invisible to this hook.
 
 const path = require("path");
+const rules = require("./lib/style-rules");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 
-const BANNED_PHRASES = [
-  /best[- ]in[- ]class/i,
-  /revolutionary/i,
-  /game[- ]chang(er|ing)/i,
-  /must[- ]have/i,
-  /unparalleled/i,
-];
-
-// Built from character codes (8211 = en dash, 8212 = em dash) so this source
-// file never contains the glyphs it bans.
-const BANNED_DASH_CHARS = [8211, 8212].map((c) => String.fromCharCode(c));
-
-const PROSE_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".ipynb"]);
-const EXEMPT = new Set(["Feedback/no-marketing-superlatives.md"]);
-
-function relativeTarget(toolInput) {
+function relativeTarget(toolInput, cwd) {
   const target = toolInput.file_path || toolInput.notebook_path;
   if (typeof target !== "string" || !target) return null;
-  return path.relative(ROOT, path.resolve(ROOT, target)).split(path.sep).join("/");
+  const base = typeof cwd === "string" && cwd ? path.resolve(ROOT, cwd) : ROOT;
+  return rules.toPosix(path.relative(ROOT, path.resolve(base, target)));
 }
 
 function newText(toolName, toolInput) {
@@ -53,25 +46,6 @@ function newText(toolName, toolInput) {
   }
 }
 
-function snippet(text, idx, len) {
-  return text.slice(Math.max(0, idx - 30), idx + len + 30).replace(/\s+/g, " ");
-}
-
-function findViolation(text) {
-  for (const ch of BANNED_DASH_CHARS) {
-    const idx = text.indexOf(ch);
-    if (idx !== -1) {
-      const name = ch.charCodeAt(0) === 8212 ? "em dash (U+2014)" : "en dash (U+2013)";
-      return `${name} found near: "${snippet(text, idx, 1)}"`;
-    }
-  }
-  for (const re of BANNED_PHRASES) {
-    const m = re.exec(text);
-    if (m) return `banned superlative "${m[0]}" found near: "${snippet(text, m.index, m[0].length)}"`;
-  }
-  return null;
-}
-
 let raw = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => (raw += chunk));
@@ -84,21 +58,20 @@ process.stdin.on("end", () => {
   }
 
   const toolInput = payload.tool_input || {};
-  const rel = relativeTarget(toolInput);
-  if (!rel || EXEMPT.has(rel) || !PROSE_EXTENSIONS.has(path.extname(rel).toLowerCase())) {
-    process.exit(0);
-  }
+  const rel = relativeTarget(toolInput, payload.cwd);
+  if (!rules.isCustomerCopy(rel)) process.exit(0);
 
-  const violation = findViolation(newText(payload.tool_name, toolInput));
-  if (violation) {
+  const found = rules.findViolations(newText(payload.tool_name, toolInput));
+  if (found.length) {
     process.stdout.write(
       JSON.stringify({
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
           permissionDecision: "deny",
           permissionDecisionReason:
-            `Style guard: ${violation}. See Feedback/no-marketing-superlatives.md, ` +
-            "rewrite before saving.",
+            `Style guard: ${rules.describe(found[0])}` +
+            (found.length > 1 ? ` (and ${found.length - 1} more)` : "") +
+            ". See Feedback/no-marketing-superlatives.md, rewrite before saving.",
         },
       })
     );
