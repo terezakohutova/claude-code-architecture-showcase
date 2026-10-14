@@ -1,5 +1,10 @@
 # TODO
 
+> **Example output, not open work on this repo.** This is the fictional
+> shop owner's follow-up list. The three lines below were written by the
+> `commitment-tracker` skill in the run shown in
+> [examples/skill-generation-session.md](examples/skill-generation-session.md).
+
 Format: `- [ ] YYYY-MM-DD: item`. New dated blocks go at the bottom, oldest
 stays on top so already-confirmed items never get reordered.
 

@@ -5,7 +5,9 @@
 //      exists, read from the repo root (not in METHODOLOGY.md, which is
 //      written for a hypothetical new project and names example paths),
 //   3. no em dash or en dash anywhere, the house rule the style-guard hook
-//      enforces for the workspace applies to this repo's own docs too.
+//      enforces for the workspace applies to this repo's own docs too,
+//   4. no unescaped "|" inside `code` in a table row (GitHub would split
+//      the cell there).
 // Exits 1 and lists every problem if anything fails.
 //
 // Run: node scripts/check-docs.js   (no dependencies)
@@ -60,6 +62,15 @@ for (const file of files) {
   raw.split("\n").forEach((line, i) => {
     if (DASHES.some((d) => line.includes(d))) problems.push(`${rel}:${i + 1} em/en dash`);
   });
+
+  // GitHub splits a table cell on "|" even inside `code`, so a pipe there
+  // must be written as "\|" or the table falls apart.
+  text.split("\n").forEach((line, i) => {
+    if (!line.trimStart().startsWith("|")) return;
+    for (const m of line.matchAll(/`[^`]*`/g)) {
+      if (/(^|[^\\])\|/.test(m[0])) problems.push(`${rel}:${i + 1} unescaped | inside code in a table row`);
+    }
+  });
 }
 
 if (problems.length) {
@@ -67,4 +78,4 @@ if (problems.length) {
   console.error(`\n${problems.length} problem(s) in ${files.length} Markdown files.`);
   process.exit(1);
 }
-console.log(`OK: ${files.length} Markdown files, all links and quoted paths resolve, no em/en dashes.`);
+console.log(`OK: ${files.length} Markdown files, all links and quoted paths resolve, no em/en dashes, tables intact.`);
