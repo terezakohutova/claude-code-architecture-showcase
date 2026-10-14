@@ -37,14 +37,16 @@
 // which it reads and writes during normal use):
 //   <config>/projects/<this project>/   plans/  todos/   read and write
 //   <config>/skills/  agents/  commands/  CLAUDE.md      read only
-//   <OS temp>/claude*                                     read and write
+//   <OS temp>/claude*/<this project>/                    read and write
 // <config> is $CLAUDE_CONFIG_DIR, else ~/.claude. "<this project>" is the
 // folder Claude Code keeps this project's transcripts, tool results and
 // memory in: the project path with every character other than a letter or
 // a digit replaced by "-" (C:\Users\me\shop -> C--Users-me-shop), plus the
 // folder holding the current session's transcript_path, which covers a
-// session started from a subfolder. Other projects' folders, settings,
-// credentials and history stay denied.
+// session started from a subfolder. The same folder name is what Claude
+// Code uses under its temp folder (<OS temp>/claude/<name>/ on Windows,
+// <OS temp>/claude-<uid>/<name>/ elsewhere). Other projects' folders, in
+// either place, and settings, credentials and history stay denied.
 //
 // Internal errors and malformed input: see lib/hook-io.js (fail-open by
 // default, GUARD_FAIL_CLOSED=1 to deny instead).
@@ -110,37 +112,41 @@ const TEMP = normalize(realResolve(os.tmpdir(), "."));
 // Claude Code's folder name for a project path.
 const projectFolderName = (p) => p.replace(/[^A-Za-z0-9]/g, "-");
 
-// This project's folders under <config>/projects for this call.
-function ownProjectFolders(payload) {
+// The folder names Claude Code uses for this project in this call: from the
+// workspace path, $CLAUDE_PROJECT_DIR and the session's transcript folder.
+function ownProjectNames(payload) {
   const names = new Set([projectFolderName(WORKSPACE_ROOT)]);
   if (process.env.CLAUDE_PROJECT_DIR) names.add(projectFolderName(path.resolve(process.env.CLAUDE_PROJECT_DIR)));
-  const dirs = [...names].map((n) => normalize(path.join(PROJECTS, n)));
   if (typeof payload.transcript_path === "string" && payload.transcript_path) {
     const t = normalize(realResolve(WORKSPACE_ROOT, payload.transcript_path));
     if (isUnder(t, PROJECTS) && t !== PROJECTS) {
       const first = path.relative(PROJECTS, t).split(path.sep)[0];
-      if (first && first !== "..") dirs.push(path.join(PROJECTS, first));
+      if (first && first !== "..") names.add(first);
     }
   }
-  return dirs;
+  return [...names].map(normalize);
 }
 
-function inClaudeTemp(resolved) {
+// This project's folders under <config>/projects for this call.
+const ownProjectFolders = (names) => names.map((n) => path.join(PROJECTS, n));
+
+// Only this project's own folder inside Claude Code's temp folders.
+function inOwnClaudeTemp(resolved, names) {
   if (!isUnder(resolved, TEMP) || resolved === TEMP) return false;
-  const first = path.relative(TEMP, resolved).split(path.sep)[0];
-  return first === "claude" || first.startsWith("claude-");
+  const [first, second] = path.relative(TEMP, resolved).split(path.sep);
+  return (first === "claude" || first.startsWith("claude-")) && names.includes(second);
 }
 
 // null = allowed, otherwise the reason it is not.
-function verdict(resolved, isWrite, ownProjects) {
+function verdict(resolved, isWrite, names) {
   if (isUnder(resolved, ROOT)) {
     if (isWrite && (GUARDRAIL_FILES.includes(resolved) || GUARDRAIL_DIRS.some((d) => isUnder(resolved, d)))) {
       return "is one of the guardrail files (settings or hooks), which a person changes by hand outside Claude Code, never the agent";
     }
     return null;
   }
-  if (ownProjects.some((d) => isUnder(resolved, d))) return null;
-  if (CLAUDE_READ_WRITE.some((d) => isUnder(resolved, d)) || inClaudeTemp(resolved)) return null;
+  if (ownProjectFolders(names).some((d) => isUnder(resolved, d))) return null;
+  if (CLAUDE_READ_WRITE.some((d) => isUnder(resolved, d)) || inOwnClaudeTemp(resolved, names)) return null;
   if (CLAUDE_READ_ONLY.some((d) => isUnder(resolved, d))) {
     return isWrite ? "is one of Claude Code's own files, which this project may read but not change" : null;
   }
@@ -233,10 +239,10 @@ runGuard("scope-guard", (payload) => {
   const cwdRaw = payload.cwd || process.env.CLAUDE_PROJECT_DIR || WORKSPACE_ROOT;
   const cwd = path.resolve(WORKSPACE_ROOT, cwdRaw);
   const isWrite = WRITE_TOOLS.has(payload.tool_name);
-  const ownProjects = ownProjectFolders(payload);
+  const names = ownProjectNames(payload);
 
   for (const [shown, resolved, early] of targets(payload.tool_name, payload.tool_input || {}, cwd)) {
-    const why = early || verdict(normalize(resolved), isWrite, ownProjects);
+    const why = early || verdict(normalize(resolved), isWrite, names);
     if (why) return `Scope guard: "${shown}" ${why}.`;
   }
   return null;

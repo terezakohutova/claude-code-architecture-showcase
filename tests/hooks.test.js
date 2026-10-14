@@ -277,9 +277,27 @@ describe("scope-guard.js", () => {
       assert.equal(check("Read", { file_path: path.join(FAKE_CLAUDE, ".credentials.json") }), "deny");
       assert.equal(check("Glob", { pattern: "**", path: FAKE_CLAUDE }), "deny");
     });
-    test("Claude Code's temp folders (screenshots, scratch) are allowed", () => {
-      assert.equal(check("Read", { file_path: path.join(FAKE_TMP, "claude", "shot.png") }), "none");
-      assert.equal(check("Write", { file_path: path.join(FAKE_TMP, "claude-123", "x.txt"), content: "x" }), "none");
+    test("this project's folder in Claude Code's temp folders (screenshots, scratch) is allowed", () => {
+      const name = projectFolder(root);
+      assert.equal(check("Read", { file_path: path.join(FAKE_TMP, "claude", name, "s1", "shot.png") }), "none");
+      assert.equal(check("Write", { file_path: path.join(FAKE_TMP, "claude-123", name, "x.txt"), content: "x" }), "none");
+    });
+    test("other projects' folders in Claude Code's temp folders are denied", () => {
+      assert.equal(check("Read", { file_path: path.join(FAKE_TMP, "claude", "shot.png") }), "deny");
+      assert.equal(check("Read", { file_path: path.join(FAKE_TMP, "claude", "C--Users-someone-other", "s1", "x.md") }), "deny");
+      assert.equal(check("Glob", { pattern: "**", path: path.join(FAKE_TMP, "claude") }), "deny");
+      assert.equal(check("Write", { file_path: path.join(FAKE_TMP, "claude-123", projectFolder(root) + "-other", "x.txt"), content: "x" }), "deny");
+    });
+    test("a project that itself sits in Claude Code's temp folder can't climb out of it", () => {
+      // The case a reviewer hit: the repo cloned into another session's
+      // scratchpad, where "../x" used to land in an allowed temp folder.
+      const host = path.join(FAKE_TMP, "claude", "C--someone-elses-project", "session", "scratchpad");
+      const nested = path.join(host, "repo");
+      fs.mkdirSync(nested, { recursive: true });
+      fs.cpSync(path.join(root, ".claude"), path.join(nested, ".claude"), { recursive: true });
+      fs.cpSync(path.join(root, "Feedback"), path.join(nested, "Feedback"), { recursive: true });
+      const r = run(nested, "scope-guard.js", preToolUse(nested, "Read", { file_path: "../outside-file.md" }));
+      assert.equal(decision(r), "deny");
     });
     test("other temp folders stay denied", () => {
       assert.equal(check("Read", { file_path: path.join(FAKE_TMP, "other", "x.txt") }), "deny");
@@ -714,6 +732,37 @@ describe("agents", () => {
       for (const m of front.matchAll(/^(\w+):/gm)) assert.ok(FIELDS.has(m[1]), `${f}: ${m[1]}`);
     }
   });
+});
+
+// examples/hook-verification.md quotes each sample payload's output. This
+// runs every payload and compares, so the page can't drift from the hooks.
+describe("examples/hook-verification.md matches what the hooks print", () => {
+  const doc = fs.readFileSync(path.join(REPO, "examples", "hook-verification.md"), "utf8");
+  const level1 = doc.split("## 2.")[0];
+  const root = makeWorkspace();
+  const payloads = fs.readdirSync(path.join(REPO, "examples", "payloads")).filter((f) => f.endsWith(".json"));
+  test("every payload is documented", () => {
+    for (const f of payloads) assert.ok(level1.includes("`" + f + "`"), f);
+  });
+  for (const f of payloads) {
+    test(f, () => {
+      const start = level1.indexOf("`" + f + "`");
+      const rest = level1.slice(start + f.length + 2);
+      const next = rest.search(/`[\w-]+\.json`/);
+      const section = next === -1 ? rest : rest.slice(0, next);
+      const hook = f.startsWith("write-") ? "style-guard.js" : "scope-guard.js";
+      const payload = fs.readFileSync(path.join(REPO, "examples", "payloads", f), "utf8");
+      const r = run(root, hook, payload);
+      assert.equal(r.code, 0);
+      const block = section.match(/```json\r?\n([\s\S]*?)\r?\n```/);
+      if (!block) {
+        assert.match(section, /no output, exit 0/);
+        assert.equal(r.stdout, "");
+      } else {
+        assert.equal(r.stdout.trim().replace(new RegExp(EM, "g"), "[U+2014]"), block[1].trim());
+      }
+    });
+  }
 });
 
 describe("README claims are backed by a file in the repo", () => {

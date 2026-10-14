@@ -16,7 +16,9 @@ exactly as Claude Code sends it. The payloads used here are in
 node .claude/hooks/style-guard.js < examples/payloads/write-superlative.json
 ```
 
-Every output below is copied from a run on 2026-10-13. A deny is a JSON
+Every output below is what the hooks print today: a test in
+`tests/hooks.test.js` runs each payload and fails if this page and the
+hook disagree. A deny is a JSON
 decision on stdout, exit code 0. An allow is no output at all, exit code 0,
 which leaves Claude Code's normal permission prompt in place.
 
@@ -50,27 +52,27 @@ customer-facing copy.
 `read-outside.json` (`../outside-file.md`):
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../outside-file.md\" resolves outside this project's folder. Reads and writes must stay inside the workspace root."}}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../outside-file.md\" resolves outside this project's folder; reads and writes must stay inside the workspace root."}}
 ```
 
 `glob-outside.json` (Glob with the absolute pattern `/etc/**/*.conf`):
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"/etc/**/*.conf\" resolves outside this project's folder. Reads and writes must stay inside the workspace root."}}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"/etc/**/*.conf\" resolves outside this project's folder; reads and writes must stay inside the workspace root."}}
 ```
 
 `glob-relative-outside.json` (Glob with the relative pattern
 `../../../**/*.md`, which the first version of this hook let through):
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../../../**/*.md\" resolves outside this project's folder. Reads and writes must stay inside the workspace root."}}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../../../**/*.md\" resolves outside this project's folder; reads and writes must stay inside the workspace root."}}
 ```
 
 `grep-glob-outside.json` (Grep with the file filter `glob: "../../**"`,
 also let through by the first version):
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../../**\" resolves outside this project's folder. Reads and writes must stay inside the workspace root."}}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Scope guard: \"../../**\" resolves outside this project's folder; reads and writes must stay inside the workspace root."}}
 ```
 
 ## 2. Inside a real Claude Code session
