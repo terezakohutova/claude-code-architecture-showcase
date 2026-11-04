@@ -184,7 +184,9 @@ protects the files the ads agents depend on.
 - [`.claude/agents/`](.claude/agents): research (`inventory-researcher`),
   review (`brand-voice-reviewer`, which compares a draft with the published
   copy in [`Brand/voice-examples.md`](Brand/voice-examples.md)) and
-  self-tuning (`procedure-tuner`).
+  self-tuning (`procedure-tuner`). Each has the persona of a Czech
+  historical figure whose work fits the role (Karel Chytil, Karel Jaromír
+  Erben, Jan Neruda). It shows only in chat; files stay neutral.
 - [`Log/`](Log/2026-01.md): one month showing the format.
 - [`tests/`](tests) and [`scripts/check-docs.js`](scripts/check-docs.js):
   the hook tests, plus a check that every link and quoted path resolves,
